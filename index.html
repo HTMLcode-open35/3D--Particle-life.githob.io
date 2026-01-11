@@ -1,0 +1,3508 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Particle Life - 三维粒子生命模拟器</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            background-color: #0a0a0a;
+            color: #e0e0e0;
+            overscroll-behavior: none;
+        }
+
+        #canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        /* 控制面板样式 */
+        #control-panel {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            width: 400px;
+            max-height: 95vh;
+            background-color: rgba(20, 20, 25, 0.95);
+            border: 1px solid #333;
+            border-radius: 10px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            z-index: 10;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            font-size: 13px;
+            user-select: none;
+            transition: transform 0.3s ease;
+        }
+
+        .panel-header {
+            background: linear-gradient(to right, rgba(30, 30, 40, 0.95), rgba(25, 25, 35, 0.95));
+            border-bottom: 1px solid #444;
+            padding: 14px 18px;
+            cursor: move;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: bold;
+            color: #ccc;
+            font-size: 15px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .panel-controls {
+            display: flex;
+            gap: 6px;
+        }
+
+        .panel-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: #888;
+            font-size: 16px;
+            cursor: pointer;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 3px;
+            transition: all 0.2s;
+        }
+
+        .panel-btn:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+            color: #fff;
+        }
+
+        .panel-content {
+            padding: 18px;
+            overflow-y: auto;
+            flex: 1;
+            transition: opacity 0.3s ease;
+        }
+
+        .collapsed .panel-content {
+            display: none;
+        }
+
+        /* 选项卡样式 */
+        .tab-container {
+            display: flex;
+            border-bottom: 1px solid #333;
+            background-color: rgba(25, 25, 35, 0.9);
+        }
+
+        .tab {
+            padding: 12px 16px;
+            cursor: pointer;
+            font-size: 12px;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-right: 1px solid #333;
+            transition: all 0.2s;
+            flex: 1;
+            text-align: center;
+        }
+
+        .tab:hover {
+            background-color: rgba(40, 40, 50, 0.9);
+            color: #ccc;
+        }
+
+        .tab.active {
+            background-color: rgba(40, 40, 50, 0.9);
+            color: #5bf;
+            border-bottom: 2px solid #5bf;
+        }
+
+        .tab-content {
+            display: none;
+            padding: 15px 0;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* 控制组样式 */
+        .control-group {
+            margin-bottom: 22px;
+        }
+
+        .control-group-title {
+            font-size: 12px;
+            color: #5bf;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+            letter-spacing: 0.5px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .control-group-title:before {
+            content: "▶";
+            margin-right: 8px;
+            font-size: 10px;
+            color: #888;
+            transition: transform 0.2s;
+        }
+
+        .control-group.expanded .control-group-title:before {
+            transform: rotate(90deg);
+        }
+
+        .control-group-content {
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+
+        .control-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+            padding: 6px 0;
+        }
+
+        .control-label {
+            flex: 1;
+            font-size: 12px;
+            color: #ccc;
+            min-width: 120px;
+        }
+
+        .control-value {
+            width: 50px;
+            text-align: right;
+            font-size: 12px;
+            color: #aaa;
+            font-family: 'Consolas', 'Courier New', monospace;
+        }
+
+        input[type="range"] {
+            flex: 2;
+            height: 6px;
+            background: #333;
+            border-radius: 3px;
+            outline: none;
+            -webkit-appearance: none;
+            margin: 0 10px;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #5bf;
+            cursor: pointer;
+            border: 2px solid #333;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #5bf;
+            cursor: pointer;
+            border: 2px solid #333;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+        }
+
+        input[type="number"], input[type="text"] {
+            width: 100%;
+            padding: 8px 10px;
+            background-color: #2a2a2a;
+            border: 1px solid #444;
+            color: #eee;
+            font-size: 12px;
+            border-radius: 4px;
+            font-family: 'Consolas', 'Courier New', monospace;
+        }
+
+        input[type="number"]:focus, input[type="text"]:focus {
+            border-color: #5bf;
+            outline: none;
+            box-shadow: 0 0 8px rgba(91, 191, 255, 0.3);
+        }
+
+        select {
+            background-color: #2a2a2a;
+            border: 1px solid #444;
+            color: #eee;
+            padding: 8px 10px;
+            font-size: 12px;
+            border-radius: 4px;
+            min-width: 100px;
+            cursor: pointer;
+        }
+
+        select:focus {
+            border-color: #5bf;
+            outline: none;
+        }
+
+        /* 按钮样式 */
+        button {
+            background-color: #3a3a3a;
+            color: #ccc;
+            border: none;
+            padding: 8px 14px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 500;
+        }
+
+        button:hover {
+            background-color: #4a4a4a;
+            color: #fff;
+            transform: translateY(-1px);
+        }
+
+        button.primary {
+            background: linear-gradient(135deg, #5bf, #2af);
+            color: #fff;
+            font-weight: bold;
+        }
+
+        button.primary:hover {
+            background: linear-gradient(135deg, #6cf, #3bf);
+            box-shadow: 0 4px 12px rgba(91, 191, 255, 0.3);
+        }
+
+        button.danger {
+            background-color: rgba(244, 67, 54, 0.2);
+            color: #f44;
+        }
+
+        button.danger:hover {
+            background-color: rgba(244, 67, 54, 0.4);
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 12px;
+            flex-wrap: wrap;
+        }
+
+        .button-group button {
+            flex: 1;
+            min-width: 100px;
+        }
+
+        /* 边界模式按钮样式 */
+        .boundary-mode-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 12px;
+            flex-wrap: wrap;
+        }
+
+        .boundary-mode-btn {
+            flex: 1;
+            min-width: 100px;
+            background-color: #3a3a3a;
+            color: #ccc;
+            border: 1px solid #444;
+            padding: 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 500;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+        }
+
+        .boundary-mode-btn:hover {
+            background-color: #4a4a4a;
+            transform: translateY(-2px);
+        }
+
+        .boundary-mode-btn.active {
+            background: linear-gradient(135deg, #5bf, #2af);
+            color: #fff;
+            border-color: #5bf;
+            box-shadow: 0 4px 12px rgba(91, 191, 255, 0.3);
+        }
+
+        .boundary-mode-btn .mode-icon {
+            font-size: 18px;
+            margin-bottom: 5px;
+        }
+
+        .boundary-mode-btn .mode-name {
+            font-size: 11px;
+            font-weight: bold;
+            margin-bottom: 3px;
+        }
+
+        .boundary-mode-btn .mode-desc {
+            font-size: 10px;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        /* 调色盘样式 */
+        .color-palette {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .palette-color {
+            width: 30px;
+            height: 30px;
+            border-radius: 4px;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .palette-color:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+        }
+
+        .palette-color.selected {
+            border-color: #fff;
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+        }
+
+        /* 颜色管理样式 */
+        .color-management {
+            margin-top: 15px;
+        }
+
+        .color-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            padding: 10px;
+            background-color: rgba(40, 40, 50, 0.5);
+            border-radius: 6px;
+            border-left: 3px solid;
+        }
+
+        .color-preview {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            margin-right: 12px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+        }
+
+        .color-name {
+            flex: 1;
+            font-size: 12px;
+            color: #ccc;
+            font-weight: 500;
+        }
+
+        .color-count {
+            font-size: 11px;
+            color: #888;
+            margin-right: 12px;
+            background-color: rgba(0, 0, 0, 0.3);
+            padding: 2px 8px;
+            border-radius: 10px;
+        }
+
+        /* 规则矩阵样式 */
+        .matrix-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .matrix-header h3 {
+            font-size: 12px;
+            color: #5bf;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: bold;
+        }
+
+        .matrix-buttons {
+            display: flex;
+            gap: 5px;
+        }
+
+        .matrix-buttons button {
+            font-size: 11px;
+            padding: 6px 10px;
+        }
+
+        .matrix-container {
+            overflow-x: auto;
+            margin-top: 10px;
+            max-height: 350px;
+            overflow-y: auto;
+            border: 1px solid #333;
+            border-radius: 6px;
+            background-color: rgba(25, 25, 35, 0.9);
+            position: relative;
+        }
+
+        .matrix-table {
+            border-collapse: collapse;
+            width: 100%;
+            font-size: 11px;
+            table-layout: fixed;
+        }
+
+        .matrix-table th, .matrix-table td {
+            border: 1px solid #333;
+            text-align: center;
+            padding: 8px 5px;
+            min-width: 55px;
+            max-width: 70px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .matrix-table th {
+            background-color: rgba(30, 30, 40, 0.95);
+            color: #aaa;
+            font-weight: normal;
+            text-transform: uppercase;
+            font-size: 10px;
+            position: sticky;
+            top: 0;
+            z-index: 2;
+        }
+
+        .matrix-table th:first-child {
+            position: sticky;
+            left: 0;
+            z-index: 3;
+            background-color: rgba(30, 30, 40, 0.98);
+        }
+
+        .matrix-table th.sticky-header {
+            position: sticky;
+            top: 0;
+            z-index: 2;
+        }
+
+        .matrix-cell {
+            position: relative;
+        }
+
+        .matrix-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            margin: 0 auto 4px auto;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            display: block;
+        }
+
+        .matrix-input {
+            width: 100%;
+            padding: 6px;
+            background-color: #2a2a2a;
+            border: 1px solid #444;
+            color: #eee;
+            text-align: center;
+            font-size: 12px;
+            border-radius: 4px;
+            font-family: 'Consolas', 'Courier New', monospace;
+            transition: all 0.2s;
+            box-sizing: border-box;
+        }
+
+        .matrix-input:focus {
+            border-color: #5bf;
+            outline: none;
+            background-color: #3a3a4a;
+            box-shadow: 0 0 8px rgba(91, 191, 255, 0.3);
+        }
+
+        /* 矩阵单元格样式 */
+        .attract-cell {
+            background-color: rgba(76, 175, 80, 0.3);
+        }
+
+        .repel-cell {
+            background-color: rgba(244, 67, 54, 0.3);
+        }
+
+        .self-cell {
+            background-color: rgba(100, 100, 100, 0.2);
+        }
+
+        .selected-cell {
+            border: 2px solid #5bf !important;
+            box-shadow: inset 0 0 10px rgba(91, 191, 255, 0.5);
+        }
+
+        /* 单元格值显示样式 */
+        .cell-value {
+            font-size: 11px;
+            font-weight: bold;
+            color: #fff;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+        }
+
+        /* 统计信息样式 */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-top: 15px;
+        }
+
+        .stat-item {
+            background: linear-gradient(135deg, rgba(40, 40, 50, 0.5), rgba(30, 30, 40, 0.5));
+            padding: 12px;
+            border-radius: 6px;
+            border-left: 3px solid #5bf;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .stat-label {
+            font-size: 10px;
+            color: #888;
+            text-transform: uppercase;
+            margin-bottom: 6px;
+            letter-spacing: 0.5px;
+        }
+
+        .stat-value {
+            font-size: 18px;
+            color: #5bf;
+            font-weight: bold;
+            font-family: 'Consolas', 'Courier New', monospace;
+        }
+
+        /* 提示信息 */
+        .hint {
+            font-size: 11px;
+            color: #777;
+            margin-top: 12px;
+            font-style: italic;
+            line-height: 1.4;
+            padding: 8px;
+            background-color: rgba(40, 40, 50, 0.3);
+            border-radius: 4px;
+            border-left: 2px solid #5bf;
+        }
+
+        /* 控制按钮 */
+        #toggle-panel {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 100;
+            background-color: rgba(30, 30, 40, 0.9);
+            color: #aaa;
+            border: 1px solid #444;
+            border-radius: 6px;
+            padding: 10px 16px;
+            cursor: pointer;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s;
+        }
+
+        #toggle-panel:hover {
+            background-color: rgba(40, 40, 50, 0.9);
+            color: #fff;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+        }
+
+        /* 信息面板 */
+        #info-panel {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            width: 220px;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* 渲染模式指示器 */
+        #render-info {
+            background-color: rgba(30, 30, 40, 0.9);
+            color: #aaa;
+            border: 1px solid #444;
+            border-radius: 6px;
+            padding: 10px 16px;
+            font-size: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        /* 性能监视器 */
+        #performance-monitor {
+            background-color: rgba(30, 30, 40, 0.9);
+            color: #aaa;
+            border: 1px solid #444;
+            border-radius: 6px;
+            padding: 12px;
+            font-size: 11px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .perf-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 6px;
+        }
+
+        .perf-label {
+            color: #888;
+        }
+
+        .perf-value {
+            color: #5bf;
+            font-family: 'Consolas', 'Courier New', monospace;
+        }
+
+        /* FPS波形图容器 */
+        #fps-graph-container {
+            background-color: rgba(30, 30, 40, 0.9);
+            border: 1px solid #444;
+            border-radius: 6px;
+            padding: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow: hidden;
+            height: 120px;
+        }
+
+        #fps-graph-container.expanded {
+            height: 400px;
+            cursor: default;
+        }
+
+        #fps-graph-title {
+            font-size: 11px;
+            color: #aaa;
+            margin-bottom: 5px;
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        #fps-graph-title span:last-child {
+            font-size: 10px;
+            color: #888;
+            cursor: pointer;
+        }
+
+        #fps-graph {
+            width: 100%;
+            height: 80px;
+            border-radius: 3px;
+            background-color: rgba(20, 20, 30, 0.8);
+        }
+
+        /* 详细性能图表容器 */
+        #detailed-performance {
+            display: none;
+            margin-top: 15px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        #fps-graph-container.expanded #detailed-performance {
+            display: block;
+            opacity: 1;
+        }
+
+        .performance-chart-container {
+            margin-bottom: 15px;
+        }
+
+        .performance-chart-title {
+            font-size: 11px;
+            color: #5bf;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .performance-chart {
+            width: 100%;
+            height: 60px;
+            border-radius: 3px;
+            background-color: rgba(20, 20, 30, 0.8);
+        }
+
+        /* 暂停/播放按钮 */
+        #play-pause-btn {
+            position: fixed;
+            bottom: 20px;
+            left: 250px;
+            z-index: 100;
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #3a3a3a, #2a2a2a);
+            color: #ccc;
+            border: 1px solid #444;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s;
+        }
+
+        #play-pause-btn:hover {
+            background: linear-gradient(135deg, #4a4a4a, #3a3a3a);
+            color: #fff;
+            transform: scale(1.1);
+        }
+
+        #play-pause-btn.playing:before {
+            content: "⏸";
+        }
+
+        #play-pause-btn.paused:before {
+            content: "▶";
+        }
+
+        /* 加载屏幕 */
+        #loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #0a0a0a;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.5s;
+        }
+
+        .loading-spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid rgba(91, 191, 255, 0.3);
+            border-top: 4px solid #5bf;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            color: #5bf;
+            font-size: 16px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        /* 背景颜色选择器 */
+        .bg-color-picker {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .bg-color-preview {
+            width: 30px;
+            height: 30px;
+            border-radius: 4px;
+            border: 2px solid #444;
+            cursor: pointer;
+        }
+
+        /* 选中的单元格编辑面板 */
+        .selected-cell-editor {
+            display: none;
+            margin-top: 15px;
+            padding: 15px;
+            background-color: rgba(40, 40, 50, 0.5);
+            border-radius: 6px;
+            border-left: 3px solid #5bf;
+        }
+
+        .selected-cell-editor.active {
+            display: block;
+        }
+
+        /* 3D视角控制说明 */
+        .view-controls-hint {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            z-index: 100;
+            background-color: rgba(30, 30, 40, 0.9);
+            color: #aaa;
+            border: 1px solid #444;
+            border-radius: 6px;
+            padding: 12px;
+            font-size: 11px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            max-width: 300px;
+        }
+
+        .view-controls-hint h3 {
+            color: #5bf;
+            font-size: 12px;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .view-controls-hint ul {
+            padding-left: 20px;
+        }
+
+        .view-controls-hint li {
+            margin-bottom: 4px;
+        }
+
+        /* 响应式调整 */
+        @media (max-width: 768px) {
+            #control-panel {
+                width: 95vw;
+                left: 2.5vw;
+                font-size: 12px;
+            }
+            
+            .tab {
+                padding: 10px 12px;
+                font-size: 11px;
+            }
+            
+            #info-panel {
+                width: 95vw;
+                left: 2.5vw;
+                right: auto;
+                top: auto;
+                bottom: 80px;
+            }
+            
+            #play-pause-btn {
+                left: 50%;
+                transform: translateX(-50%);
+                bottom: 20px;
+            }
+            
+            .view-controls-hint {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="loading-screen">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">初始化3D粒子生命模拟器</div>
+    </div>
+    
+    <div id="canvas-container"></div>
+    
+    <!-- 信息面板 -->
+    <div id="info-panel">
+        <!-- 渲染模式指示器 -->
+        <div id="render-info">渲染模式: Three.js (WebGL)</div>
+        
+        <!-- 性能监视器 -->
+        <div id="performance-monitor">
+            <div class="perf-item">
+                <span class="perf-label">FPS:</span>
+                <span class="perf-value" id="perf-fps">0</span>
+            </div>
+            <div class="perf-item">
+                <span class="perf-label">粒子数:</span>
+                <span class="perf-value" id="perf-particles">0</span>
+            </div>
+            <div class="perf-item">
+                <span class="perf-label">计算时间:</span>
+                <span class="perf-value" id="perf-compute">0ms</span>
+            </div>
+            <div class="perf-item">
+                <span class="perf-label">渲染时间:</span>
+                <span class="perf-value" id="perf-render">0ms</span>
+            </div>
+            <div class="perf-item">
+                <span class="perf-label">模拟状态:</span>
+                <span class="perf-value" id="perf-state" style="color: #4CAF50;">运行中</span>
+            </div>
+            <div class="perf-item">
+                <span class="perf-label">边界模式:</span>
+                <span class="perf-value" id="perf-boundary-mode" style="color: #5bf;">循环</span>
+            </div>
+        </div>
+        
+        <!-- FPS波形图 -->
+        <div id="fps-graph-container">
+            <div id="fps-graph-title">
+                <span>性能监控图</span>
+                <span id="expand-btn">点击展开</span>
+            </div>
+            <canvas id="fps-graph"></canvas>
+            
+            <!-- 详细性能图表 -->
+            <div id="detailed-performance">
+                <div class="performance-chart-container">
+                    <div class="performance-chart-title">CPU占用</div>
+                    <canvas class="performance-chart" id="cpu-graph"></canvas>
+                </div>
+                <div class="performance-chart-container">
+                    <div class="performance-chart-title">内存使用</div>
+                    <canvas class="performance-chart" id="memory-graph"></canvas>
+                </div>
+                <div class="performance-chart-container">
+                    <div class="performance-chart-title">GPU占用</div>
+                    <canvas class="performance-chart" id="gpu-graph"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 3D视角控制说明 -->
+    <div class="view-controls-hint">
+        <h3>3D视角控制</h3>
+        <ul>
+            <li><strong>鼠标左键拖动:</strong> 旋转视角</li>
+            <li><strong>鼠标右键拖动:</strong> 平移视角</li>
+            <li><strong>鼠标滚轮:</strong> 缩放</li>
+            <li><strong>双击:</strong> 聚焦选中对象</li>
+        </ul>
+    </div>
+    
+    <!-- 暂停/播放按钮 -->
+    <button id="play-pause-btn" class="playing" title="暂停/播放模拟"></button>
+    
+    <!-- 控制面板 -->
+    <div class="panel" id="control-panel">
+        <div class="panel-header">
+            <span>3D粒子生命模拟器</span>
+            <div class="panel-controls">
+                <button class="panel-btn collapse-btn">−</button>
+            </div>
+        </div>
+        
+        <div class="tab-container">
+            <div class="tab active" data-tab="simulation">模拟设置</div>
+            <div class="tab" data-tab="colors">颜色管理</div>
+            <div class="tab" data-tab="rules">规则矩阵</div>
+            <div class="tab" data-tab="presets">预设</div>
+            <div class="tab" data-tab="stats">统计信息</div>
+        </div>
+        
+        <div class="panel-content">
+            <!-- 模拟设置选项卡 -->
+            <div class="tab-content active" id="simulation-tab">
+                <div class="control-group expanded">
+                    <div class="control-group-title">边界模式选择</div>
+                    <div class="control-group-content">
+                        <div class="boundary-mode-buttons">
+                            <button class="boundary-mode-btn active" data-mode="wrap" id="wrap-boundary-btn">
+                                <div class="mode-icon">⟳</div>
+                                <div class="mode-name">循环边界</div>
+                                <div class="mode-desc">粒子从一边离开会从另一边出现</div>
+                            </button>
+                            <button class="boundary-mode-btn" data-mode="bounce" id="bounce-boundary-btn">
+                                <div class="mode-icon">↔</div>
+                                <div class="mode-name">碰撞边界</div>
+                                <div class="mode-desc">粒子会从边界反弹回来</div>
+                            </button>
+                            <button class="boundary-mode-btn" data-mode="repel" id="repel-boundary-btn">
+                                <div class="mode-icon">☢</div>
+                                <div class="mode-name">排斥边界</div>
+                                <div class="mode-desc">粒子靠近边界会受到强大排斥力</div>
+                            </button>
+                        </div>
+                        
+                        <!-- 排斥边界设置（默认隐藏） -->
+                        <div id="repel-boundary-settings" style="display: none; margin-top: 15px; padding-top: 15px; border-top: 1px solid #333;">
+                            <div class="control-row">
+                                <span class="control-label">排斥力强度</span>
+                                <input type="range" id="repel-strength" min="1" max="50" value="10" step="1">
+                                <span class="control-value" id="repel-strength-value">10</span>
+                            </div>
+                            <div class="control-row">
+                                <span class="control-label">作用范围</span>
+                                <input type="range" id="repel-range" min="10" max="200" value="100" step="10">
+                                <span class="control-value" id="repel-range-value">100</span>
+                            </div>
+                            <div class="hint" style="margin-top: 10px; font-size: 10px;">
+                                当粒子靠近边界时，会受到强大的排斥力将其推回。排斥力强度越高，粒子越难接近边界。
+                            </div>
+                        </div>
+                        
+                        <div class="hint" style="margin-top: 15px;">
+                            当前边界模式：<span id="current-boundary-mode" style="color: #5bf;">循环边界</span>。选择不同的边界模式以观察粒子行为的变化。
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="control-group expanded">
+                    <div class="control-group-title">模拟控制</div>
+                    <div class="control-group-content">
+                        <div class="control-row">
+                            <span class="control-label">时间步长</span>
+                            <input type="range" id="time-step" min="0.01" max="0.7" value="0.1" step="0.01">
+                            <span class="control-value" id="time-step-value">0.10</span>
+                        </div>
+                        
+                        <div class="control-row">
+                            <span class="control-label">模拟速度</span>
+                            <input type="range" id="sim-speed" min="0.1" max="0.7" value="0.5" step="0.1">
+                            <span class="control-value" id="sim-speed-value">0.5</span>
+                        </div>
+                        
+                        <div class="control-row">
+                            <span class="control-label">模拟区域大小</span>
+                            <input type="number" id="world-size" min="500" max="3000" value="1000" step="100">
+                        </div>
+                        
+                        <div class="button-group">
+                            <button id="pause-btn" class="primary">暂停模拟</button>
+                            <button id="step-btn">单步执行</button>
+                            <button id="reset-sim">重置模拟</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="control-group expanded">
+                    <div class="control-group-title">粒子属性</div>
+                    <div class="control-group-content">
+                        <div class="control-row">
+                            <span class="control-label">粒子数量</span>
+                            <input type="range" id="particle-count-slider" min="100" max="5000" value="1000" step="100">
+                            <span class="control-value" id="particle-count">1000</span>
+                        </div>
+                        
+                        <div class="control-row">
+                            <span class="control-label">粒子大小</span>
+                            <input type="range" id="particle-size" min="0.5" max="10" value="2.0" step="0.5">
+                            <span class="control-label" id="size-value">2.0</span>
+                        </div>
+                        
+                        <div class="control-row">
+                            <span class="control-label">最大速度</span>
+                            <input type="range" id="max-speed" min="0.1" max="10.0" value="3.0" step="0.1">
+                            <span class="control-value" id="max-speed-value">3.0</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="control-group expanded">
+                    <div class="control-group-title">力场设置 (3D扩展)</div>
+                    <div class="control-group-content">
+                        <div class="control-row">
+                            <span class="control-label">力场范围</span>
+                            <input type="range" id="force-range" min="10" max="200" value="80" step="5">
+                            <span class="control-value" id="range-value">80</span>
+                        </div>
+                        
+                        <div class="control-row">
+                            <span class="control-label">力场强度</span>
+                            <input type="range" id="force-strength" min="0.1" max="3.0" value="1.0" step="0.1">
+                            <span class="control-value" id="strength-value">1.0</span>
+                        </div>
+                        
+                        <div class="control-row">
+                            <span class="control-label">最小距离</span>
+                            <input type="range" id="min-distance" min="1" max="40" value="10" step="1">
+                            <span class="control-value" id="min-distance-value">10</span>
+                        </div>
+                        
+                        <div class="control-row">
+                            <span class="control-label">摩擦力</span>
+                            <input type="range" id="friction" min="0.85" max="0.995" value="0.96" step="0.005">
+                            <span class="control-value" id="friction-value">0.96</span>
+                        </div>
+                        
+                        <div class="hint">
+                            注意：3D模拟的计算复杂度更高，建议粒子数量控制在1000-2000之间以获得流畅体验。
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="control-group expanded">
+                    <div class="control-group-title">3D显示设置</div>
+                    <div class="control-group-content">
+                        <div class="control-row">
+                            <span class="control-label">背景颜色</span>
+                            <div class="bg-color-picker">
+                                <input type="text" id="bg-color" value="#0a0a1a" style="flex: 1;">
+                                <div class="bg-color-preview" id="bg-color-preview" style="background-color: #0a0a1a;"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="control-row">
+                            <span class="control-label">网格显示</span>
+                            <input type="checkbox" id="show-grid" checked style="margin-left: auto;">
+                        </div>
+                        
+                        <div class="control-row">
+                            <span class="control-label">坐标轴显示</span>
+                            <input type="checkbox" id="show-axes" checked style="margin-left: auto;">
+                        </div>
+                        
+                        <div class="control-row">
+                            <span class="control-label">光照强度</span>
+                            <input type="range" id="light-intensity" min="0.1" max="2.0" value="1.0" step="0.1">
+                            <span class="control-value" id="light-intensity-value">1.0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 颜色管理选项卡 -->
+            <div class="tab-content" id="colors-tab">
+                <div class="control-group expanded">
+                    <div class="control-group-title">官方调色盘</div>
+                    <div class="control-group-content">
+                        <div class="color-palette" id="official-palette">
+                            <!-- 官方调色盘颜色将通过JavaScript动态生成 -->
+                        </div>
+                        <div class="hint">
+                            点击调色盘中的颜色可以快速添加到当前颜色列表
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="control-group expanded">
+                    <div class="control-group-title">添加新颜色</div>
+                    <div class="control-group-content">
+                        <div class="control-row">
+                            <span class="control-label">颜色名称</span>
+                            <input type="text" id="new-color-name" placeholder="例如: 红色" value="红色">
+                        </div>
+                        
+                        <div class="control-row">
+                            <span class="control-label">颜色值</span>
+                            <input type="text" id="new-color-value" placeholder="#FF4444" value="#FF4444">
+                            <div class="color-preview" id="new-color-preview" style="background-color: #FF4444; margin-left: 10px;"></div>
+                        </div>
+                        
+                        <button id="add-color" class="primary" style="width: 100%; margin-top: 12px;">添加新颜色</button>
+                    </div>
+                </div>
+                
+                <div class="control-group expanded">
+                    <div class="control-group-title">当前颜色</div>
+                    <div class="control-group-content">
+                        <div id="color-list">
+                            <!-- 颜色列表将动态生成 -->
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="hint">
+                    支持标准十六进制颜色代码（如#FF0000）或CSS颜色名称（如red）。最少需要2种颜色，最多支持8种颜色。
+                </div>
+            </div>
+            
+            <!-- 规则矩阵选项卡 -->
+            <div class="tab-content" id="rules-tab">
+                <div class="control-group expanded">
+                    <div class="matrix-header">
+                        <div class="control-group-title">规则矩阵 (行→列)</div>
+                        <div class="matrix-buttons">
+                            <button id="random-fill-rules" class="primary" title="用随机值填充所有单元格">随机填充</button>
+                            <button id="clear-all-rules" class="danger" title="删除所有规则">删除所有规则</button>
+                        </div>
+                    </div>
+                    <div class="control-group-content">
+                        <div class="matrix-container">
+                            <table class="matrix-table" id="rules-table">
+                                <!-- 矩阵将通过JavaScript动态生成 -->
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 选中的单元格编辑器 -->
+                <div class="selected-cell-editor" id="selected-cell-editor">
+                    <div class="control-group-title">编辑选中单元格</div>
+                    <div class="control-group-content">
+                        <div class="control-row">
+                            <span class="control-label">行颜色</span>
+                            <span id="selected-row-color" class="control-value">-</span>
+                        </div>
+                        <div class="control-row">
+                            <span class="control-label">列颜色</span>
+                            <span id="selected-col-color" class="control-value">-</span>
+                        </div>
+                        <div class="control-row">
+                            <span class="control-label">作用力 (-1.0 到 1.0)</span>
+                            <input type="number" id="selected-cell-value" min="-1.0" max="1.0" step="0.1" value="0.0">
+                            <button id="update-selected-cell" class="primary" style="margin-left: 10px;">更新单元格</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="control-group">
+                    <div class="control-group-title">规则编辑器</div>
+                    <div class="control-group-content">
+                        <div class="control-row">
+                            <span class="control-label">从颜色</span>
+                            <select id="rule-color1">
+                                <!-- 选项将动态生成 -->
+                            </select>
+                            <div class="color-preview" id="rule-color1-preview" style="margin-left: 10px;"></div>
+                        </div>
+                        
+                        <div class="control-row">
+                            <span class="control-label">到颜色</span>
+                            <select id="rule-color2">
+                                <!-- 选项将动态生成 -->
+                            </select>
+                            <div class="color-preview" id="rule-color2-preview" style="margin-left: 10px;"></div>
+                        </div>
+                        
+                        <div class="control-row">
+                            <span class="control-label">作用力 (-1.0 到 1.0)</span>
+                            <input type="number" id="rule-force" min="-1.0" max="1.0" step="0.1" value="0.5">
+                            <button id="set-rule" class="primary" style="margin-left: 10px;">设置规则</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="hint">
+                    提示：单击单元格选择，双击单元格循环切换值（正→负→0），选中的单元格可以精确编辑。所有力的范围限制在-1.0到1.0之间。
+                </div>
+            </div>
+            
+            <!-- 预设选项卡 -->
+            <div class="tab-content" id="presets-tab">
+                <div class="control-group expanded">
+                    <div class="control-group-title">3D地图预设</div>
+                    <div class="control-group-content">
+                        <div class="button-group">
+                            <button id="preset-random-3d" title="随机3D分布">随机3D分布</button>
+                            <button id="preset-sphere-3d" title="球体分布">球体分布</button>
+                            <button id="preset-cube-3d" title="立方体分布">立方体分布</button>
+                        </div>
+                        <div class="button-group">
+                            <button id="preset-cylinder-3d" title="圆柱体分布">圆柱体分布</button>
+                            <button id="preset-spiral-3d" title="3D螺旋">3D螺旋</button>
+                            <button id="preset-plane-3d" title="平面分布">平面分布</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="control-group expanded">
+                    <div class="control-group-title">经典规则预设 (3D扩展)</div>
+                    <div class="control-group-content">
+                        <div class="button-group">
+                            <button id="preset-snake-3d" title="3D蛇形运动">3D蛇形运动</button>
+                            <button id="preset-cell-3d" title="3D静态细胞">3D静态细胞</button>
+                            <button id="preset-moving-cell-3d" title="3D可运动细胞">3D可运动细胞</button>
+                        </div>
+                        <div class="button-group">
+                            <button id="preset-ecosystem-3d" title="3D生态系统">3D生态系统</button>
+                            <button id="preset-oscillator-3d" title="3D振荡器">3D振荡器</button>
+                            <button id="preset-swarm-3d" title="3D群体行为">3D群体行为</button>
+                        </div>
+                        <div class="button-group">
+                            <button id="preset-chaos-3d" title="3D混沌系统">3D混沌系统</button>
+                            <button id="preset-symmetry-3d" title="3D对称图案">3D对称图案</button>
+                            <button id="preset-life-3d" title="3D生命游戏">3D生命游戏</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="control-group">
+                    <div class="control-group-title">预设管理</div>
+                    <div class="control-group-content">
+                        <div class="button-group">
+                            <button id="save-preset" class="primary" title="保存当前设置为预设">保存预设</button>
+                            <button id="load-preset" title="加载预设">加载预设</button>
+                            <button id="clear-preset" class="danger" title="清除所有预设">清除预设</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="hint">
+                    提示：3D地图预设控制粒子在三维空间中的初始分布，规则预设控制粒子之间的三维相互作用力。
+                </div>
+            </div>
+            
+            <!-- 统计信息选项卡 -->
+            <div class="tab-content" id="stats-tab">
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-label">粒子数量</div>
+                        <div class="stat-value" id="stat-particle-count">0</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">FPS</div>
+                        <div class="stat-value" id="stat-fps">0</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">颜色种类</div>
+                        <div class="stat-value" id="stat-color-count">0</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">规则数量</div>
+                        <div class="stat-value" id="stat-rule-count">0</div>
+                    </div>
+                </div>
+                
+                <div class="control-group" style="margin-top: 20px;">
+                    <div class="control-group-title">3D模拟状态</div>
+                    <div class="control-group-content">
+                        <div class="control-row">
+                            <span class="control-label">边界模式</span>
+                            <span class="control-value" id="stat-boundary-mode" style="color: #5bf;">循环边界</span>
+                        </div>
+                        <div class="control-row">
+                            <span class="control-label">最小距离</span>
+                            <span class="control-value" id="stat-min-distance">10</span>
+                        </div>
+                        <div class="control-row">
+                            <span class="control-label">最大速度</span>
+                            <span class="control-value" id="stat-max-speed">3.0</span>
+                        </div>
+                        <div class="control-row">
+                            <span class="control-label">模拟范围</span>
+                            <span class="control-value" id="stat-world-size">1000×1000×1000</span>
+                        </div>
+                        <div class="control-row">
+                            <span class="control-label">模拟状态</span>
+                            <span class="control-value" id="stat-sim-state" style="color: #4CAF50;">运行中</span>
+                        </div>
+                        <div class="control-row">
+                            <span class="control-label">渲染器</span>
+                            <span class="control-value" id="stat-render-mode" style="color: #5bf;">Three.js (WebGL)</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="hint">
+                    提示：当前模拟世界大小为1000×1000×1000单位，使用鼠标和触摸手势可以自由控制3D视角。所有力的范围都限制在-1.0到1.0之间。
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 隐藏/显示面板按钮 -->
+    <button id="toggle-panel">隐藏控制面板</button>
+
+    <!-- 引入Three.js库 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- 引入轨道控制器 -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.min.js"></script>
+    
+    <script>
+        // 等待DOM完全加载
+        document.addEventListener('DOMContentLoaded', function() {
+            // 隐藏加载屏幕
+            setTimeout(function() {
+                document.getElementById('loading-screen').style.opacity = '0';
+                setTimeout(function() {
+                    document.getElementById('loading-screen').style.display = 'none';
+                    init();
+                }, 500);
+            }, 1500);
+        });
+
+        // ==================== 3D模拟引擎 ====================
+        let scene, camera, renderer, controls;
+        let particles = [];
+        let particleMeshes = [];
+        let rules = {}; // 规则矩阵
+        
+        // 颜色管理系统
+        let colors = [
+            { id: 0, name: "红色", value: "#FF4444" },
+            { id: 1, name: "绿色", value: "#44FF44" },
+            { id: 2, name: "蓝色", value: "#4444FF" },
+            { id: 3, name: "黄色", value: "#FFFF44" },
+            { id: 4, name: "紫色", value: "#AA44FF" }
+        ];
+        let nextColorId = 5;
+        
+        // 模拟状态
+        let isPaused = false;
+        let timeStep = 0.1;  // 时间步长（模拟步进量）
+        let simSpeed = 0.5;  // 模拟速度乘数
+        
+        // 边界模式
+        let boundaryMode = 'wrap'; // 'wrap'循环, 'bounce'碰撞, 'repel'排斥
+        let repelStrength = 10.0;  // 排斥边界强度
+        let repelRange = 100;      // 排斥边界作用范围
+        
+        // 显示设置
+        let backgroundColor = '#0a0a1a';
+        let showGrid = true;
+        let showAxes = true;
+        let lightIntensity = 1.0;
+        
+        // 模拟世界大小 - 缩小为3D范围
+        let WORLD_SIZE = 1000;
+        
+        // 模拟参数
+        let minDistance = 10;  // 最小距离，小于此距离会产生排斥
+        let maxSpeed = 3.0;    // 最大速度限制
+        let forceRange = 80;   // 力场作用范围
+        let forceStrength = 1.0; // 力场强度乘数
+        let friction = 0.96;   // 摩擦力
+        
+        // 3D场景元素
+        let gridHelper, axesHelper;
+        let directionalLight, ambientLight;
+        
+        // 性能监控数据
+        const fpsHistory = new Array(60).fill(60);
+        const cpuHistory = new Array(60).fill(0);
+        const memoryHistory = new Array(60).fill(0);
+        const gpuHistory = new Array(60).fill(0);
+        let historyIndex = 0;
+        
+        // FPS图表展开状态
+        let isFpsExpanded = false;
+        
+        // 选中的矩阵单元格
+        let selectedCell = null;
+        
+        // 初始化Three.js场景
+        function initThreeJS() {
+            // 创建场景
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(backgroundColor);
+            
+            // 创建相机
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 5000);
+            camera.position.set(WORLD_SIZE * 1.5, WORLD_SIZE * 1.5, WORLD_SIZE * 1.5);
+            camera.lookAt(0, 0, 0);
+            
+            // 创建渲染器
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            
+            // 添加到DOM
+            const canvasContainer = document.getElementById('canvas-container');
+            canvasContainer.appendChild(renderer.domElement);
+            
+            // 添加轨道控制器
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.screenSpacePanning = false;
+            controls.minDistance = 100;
+            controls.maxDistance = 5000;
+            controls.maxPolarAngle = Math.PI;
+            
+            // 添加光源
+            directionalLight = new THREE.DirectionalLight(0xffffff, lightIntensity);
+            directionalLight.position.set(1, 1, 1).normalize();
+            directionalLight.castShadow = true;
+            scene.add(directionalLight);
+            
+            ambientLight = new THREE.AmbientLight(0x404040, lightIntensity * 0.5);
+            scene.add(ambientLight);
+            
+            // 添加网格和坐标轴
+            gridHelper = new THREE.GridHelper(WORLD_SIZE * 2, 20, 0x444444, 0x222222);
+            scene.add(gridHelper);
+            
+            axesHelper = new THREE.AxesHelper(WORLD_SIZE);
+            scene.add(axesHelper);
+            
+            // 处理窗口大小变化
+            window.addEventListener('resize', onWindowResize);
+            
+            console.log("Three.js场景初始化完成！");
+        }
+        
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            
+            // 调整FPS图表大小
+            resizeCanvas();
+        }
+        
+        // 粒子类（3D版本）
+        class Particle3D {
+            constructor(x, y, z, color, colorIndex) {
+                this.x = x;
+                this.y = y;
+                this.z = z;
+                this.color = color;
+                this.colorIndex = colorIndex;
+                this.vx = (Math.random() - 0.5) * 0.5;
+                this.vy = (Math.random() - 0.5) * 0.5;
+                this.vz = (Math.random() - 0.5) * 0.5;
+                this.radius = parseFloat(document.getElementById('particle-size').value);
+                this.mass = this.radius * 0.5;
+                this.id = Math.random().toString(36).substr(2, 9);
+                
+                // 创建Three.js球体网格
+                const geometry = new THREE.SphereGeometry(this.radius, 16, 16);
+                const material = new THREE.MeshLambertMaterial({ 
+                    color: new THREE.Color(color),
+                    emissive: new THREE.Color(color).multiplyScalar(0.2)
+                });
+                this.mesh = new THREE.Mesh(geometry, material);
+                this.mesh.position.set(this.x, this.y, this.z);
+                this.mesh.castShadow = true;
+                this.mesh.receiveShadow = true;
+            }
+            
+            update() {
+                if (isPaused) return;
+                
+                const effectiveTimeStep = timeStep * simSpeed;
+                
+                // 根据边界模式处理边界
+                this.handleBoundaries();
+                
+                // 应用边界排斥力（如果启用）
+                if (boundaryMode === 'repel') {
+                    this.applyBoundaryRepulsion();
+                }
+                
+                // 更新位置
+                this.x += this.vx * effectiveTimeStep;
+                this.y += this.vy * effectiveTimeStep;
+                this.z += this.vz * effectiveTimeStep;
+                
+                // 应用摩擦力
+                this.vx *= Math.pow(friction, effectiveTimeStep);
+                this.vy *= Math.pow(friction, effectiveTimeStep);
+                this.vz *= Math.pow(friction, effectiveTimeStep);
+                
+                // 限制最大速度
+                const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy + this.vz * this.vz);
+                if (speed > maxSpeed) {
+                    const scale = maxSpeed / speed;
+                    this.vx *= scale;
+                    this.vy *= scale;
+                    this.vz *= scale;
+                }
+                
+                // 更新网格位置
+                this.mesh.position.set(this.x, this.y, this.z);
+            }
+            
+            handleBoundaries() {
+                switch (boundaryMode) {
+                    case 'wrap':
+                        this.wrapBoundaries();
+                        break;
+                    case 'bounce':
+                        this.bounceBoundaries();
+                        break;
+                    case 'repel':
+                        // 排斥边界在applyBoundaryRepulsion中处理
+                        break;
+                }
+            }
+            
+            wrapBoundaries() {
+                const halfWorld = WORLD_SIZE / 2;
+                
+                if (this.x > halfWorld) {
+                    this.x = -halfWorld;
+                } else if (this.x < -halfWorld) {
+                    this.x = halfWorld;
+                }
+                
+                if (this.y > halfWorld) {
+                    this.y = -halfWorld;
+                } else if (this.y < -halfWorld) {
+                    this.y = halfWorld;
+                }
+                
+                if (this.z > halfWorld) {
+                    this.z = -halfWorld;
+                } else if (this.z < -halfWorld) {
+                    this.z = halfWorld;
+                }
+            }
+            
+            bounceBoundaries() {
+                const halfWorld = WORLD_SIZE / 2;
+                const boundary = halfWorld - this.radius;
+                
+                // 检查是否碰到X轴边界
+                if (this.x > boundary) {
+                    this.x = boundary;
+                    this.vx = -Math.abs(this.vx) * 0.8; // 反弹并损失一些能量
+                } else if (this.x < -boundary) {
+                    this.x = -boundary;
+                    this.vx = Math.abs(this.vx) * 0.8;
+                }
+                
+                // 检查是否碰到Y轴边界
+                if (this.y > boundary) {
+                    this.y = boundary;
+                    this.vy = -Math.abs(this.vy) * 0.8;
+                } else if (this.y < -boundary) {
+                    this.y = -boundary;
+                    this.vy = Math.abs(this.vy) * 0.8;
+                }
+                
+                // 检查是否碰到Z轴边界
+                if (this.z > boundary) {
+                    this.z = boundary;
+                    this.vz = -Math.abs(this.vz) * 0.8;
+                } else if (this.z < -boundary) {
+                    this.z = -boundary;
+                    this.vz = Math.abs(this.vz) * 0.8;
+                }
+            }
+            
+            applyBoundaryRepulsion() {
+                const halfWorld = WORLD_SIZE / 2;
+                const boundary = halfWorld - this.radius;
+                
+                // 计算到各边界的距离
+                const distToLeft = this.x + boundary;
+                const distToRight = boundary - this.x;
+                const distToBottom = this.y + boundary;
+                const distToTop = boundary - this.y;
+                const distToBack = this.z + boundary;
+                const distToFront = boundary - this.z;
+                
+                // 检查是否在排斥范围内
+                if (distToLeft < repelRange) {
+                    // 计算排斥力（距离越近，力越大）
+                    const force = (1 - distToLeft / repelRange) * repelStrength * timeStep;
+                    this.vx += force; // 向右推
+                }
+                
+                if (distToRight < repelRange) {
+                    const force = (1 - distToRight / repelRange) * repelStrength * timeStep;
+                    this.vx -= force; // 向左推
+                }
+                
+                if (distToBottom < repelRange) {
+                    const force = (1 - distToBottom / repelRange) * repelStrength * timeStep;
+                    this.vy += force; // 向上推
+                }
+                
+                if (distToTop < repelRange) {
+                    const force = (1 - distToTop / repelRange) * repelStrength * timeStep;
+                    this.vy -= force; // 向下推
+                }
+                
+                if (distToBack < repelRange) {
+                    const force = (1 - distToBack / repelRange) * repelStrength * timeStep;
+                    this.vz += force; // 向前推
+                }
+                
+                if (distToFront < repelRange) {
+                    const force = (1 - distToFront / repelRange) * repelStrength * timeStep;
+                    this.vz -= force; // 向后推
+                }
+                
+                // 确保粒子不会超出边界
+                if (this.x > boundary) this.x = boundary;
+                if (this.x < -boundary) this.x = -boundary;
+                if (this.y > boundary) this.y = boundary;
+                if (this.y < -boundary) this.y = -boundary;
+                if (this.z > boundary) this.z = boundary;
+                if (this.z < -boundary) this.z = -boundary;
+            }
+            
+            // 从场景中移除粒子
+            removeFromScene() {
+                if (this.mesh && this.mesh.parent) {
+                    this.mesh.parent.remove(this.mesh);
+                }
+            }
+        }
+        
+        // ==================== 性能图表系统 ====================
+        function resizeCanvas() {
+            const fpsCanvas = document.getElementById('fps-graph');
+            const cpuCanvas = document.getElementById('cpu-graph');
+            const memoryCanvas = document.getElementById('memory-graph');
+            const gpuCanvas = document.getElementById('gpu-graph');
+            
+            // 设置性能图表Canvas
+            fpsCanvas.width = 200;
+            fpsCanvas.height = isFpsExpanded ? 80 : 80;
+            cpuCanvas.width = 200;
+            cpuCanvas.height = 60;
+            memoryCanvas.width = 200;
+            memoryCanvas.height = 60;
+            gpuCanvas.width = 200;
+            gpuCanvas.height = 60;
+            
+            // 重新绘制所有图表
+            drawFPSGraph();
+            if (isFpsExpanded) {
+                drawCPUGraph();
+                drawMemoryGraph();
+                drawGPUGraph();
+            }
+        }
+        
+        function drawFPSGraph() {
+            const fpsCanvas = document.getElementById('fps-graph');
+            const fpsCtx = fpsCanvas.getContext('2d');
+            const width = fpsCanvas.width;
+            const height = fpsCanvas.height;
+            
+            // 清除画布
+            fpsCtx.clearRect(0, 0, width, height);
+            
+            // 绘制背景
+            fpsCtx.fillStyle = '#1a1a2a';
+            fpsCtx.fillRect(0, 0, width, height);
+            
+            // 绘制网格线
+            fpsCtx.strokeStyle = '#333344';
+            fpsCtx.lineWidth = 1;
+            
+            // 水平网格线
+            for (let i = 0; i <= 5; i++) {
+                const y = i * height / 5;
+                fpsCtx.beginPath();
+                fpsCtx.moveTo(0, y);
+                fpsCtx.lineTo(width, y);
+                fpsCtx.stroke();
+            }
+            
+            // 绘制FPS目标线（60FPS）
+            fpsCtx.strokeStyle = '#4CAF50';
+            fpsCtx.lineWidth = 1;
+            const targetY = height - (60 / 120) * height;
+            fpsCtx.beginPath();
+            fpsCtx.moveTo(0, targetY);
+            fpsCtx.lineTo(width, targetY);
+            fpsCtx.stroke();
+            
+            // 绘制波形
+            fpsCtx.beginPath();
+            
+            for (let i = 0; i < fpsHistory.length; i++) {
+                const fps = fpsHistory[(historyIndex + i) % fpsHistory.length];
+                // 限制FPS显示范围在0-120之间
+                const clampedFPS = Math.max(0, Math.min(fps, 120));
+                
+                const x = i * width / fpsHistory.length;
+                const y = height - (clampedFPS / 120) * height;
+                
+                // 根据FPS值设置颜色（低FPS为红色，高FPS为绿色）
+                if (fps < 30) {
+                    fpsCtx.strokeStyle = '#FF4444';
+                } else if (fps < 45) {
+                    fpsCtx.strokeStyle = '#FFAA44';
+                } else {
+                    fpsCtx.strokeStyle = '#44FF44';
+                }
+                
+                if (i === 0) {
+                    fpsCtx.moveTo(x, y);
+                } else {
+                    fpsCtx.lineTo(x, y);
+                }
+            }
+            
+            fpsCtx.lineWidth = 2;
+            fpsCtx.stroke();
+            
+            // 绘制当前FPS值
+            const currentFPS = fpsHistory[historyIndex];
+            fpsCtx.fillStyle = '#FFFFFF';
+            fpsCtx.font = '12px Consolas';
+            fpsCtx.fillText(`FPS: ${Math.round(currentFPS)}`, 5, 15);
+            
+            // 绘制最小值/最大值
+            const minFPS = Math.min(...fpsHistory);
+            const maxFPS = Math.max(...fpsHistory);
+            fpsCtx.fillStyle = '#888888';
+            fpsCtx.font = '10px Consolas';
+            fpsCtx.fillText(`Min: ${Math.round(minFPS)}`, 5, 30);
+            fpsCtx.fillText(`Max: ${Math.round(maxFPS)}`, 5, 45);
+        }
+        
+        function drawCPUGraph() {
+            const cpuCanvas = document.getElementById('cpu-graph');
+            const cpuCtx = cpuCanvas.getContext('2d');
+            const width = cpuCanvas.width;
+            const height = cpuCanvas.height;
+            
+            // 清除画布
+            cpuCtx.clearRect(0, 0, width, height);
+            
+            // 绘制背景
+            cpuCtx.fillStyle = '#1a1a2a';
+            cpuCtx.fillRect(0, 0, width, height);
+            
+            // 绘制波形
+            cpuCtx.beginPath();
+            
+            for (let i = 0; i < cpuHistory.length; i++) {
+                const cpu = cpuHistory[(historyIndex + i) % cpuHistory.length];
+                
+                const x = i * width / cpuHistory.length;
+                const y = height - (cpu / 100) * height;
+                
+                // 根据CPU值设置颜色
+                if (cpu < 30) {
+                    cpuCtx.strokeStyle = '#44FF44';
+                } else if (cpu < 70) {
+                    cpuCtx.strokeStyle = '#FFAA44';
+                } else {
+                    cpuCtx.strokeStyle = '#FF4444';
+                }
+                
+                if (i === 0) {
+                    cpuCtx.moveTo(x, y);
+                } else {
+                    cpuCtx.lineTo(x, y);
+                }
+            }
+            
+            cpuCtx.lineWidth = 2;
+            cpuCtx.stroke();
+            
+            // 绘制当前CPU值
+            const currentCPU = cpuHistory[historyIndex];
+            cpuCtx.fillStyle = '#FFFFFF';
+            cpuCtx.font = '12px Consolas';
+            cpuCtx.fillText(`CPU: ${Math.round(currentCPU)}%`, 5, 15);
+        }
+        
+        function drawMemoryGraph() {
+            const memoryCanvas = document.getElementById('memory-graph');
+            const memoryCtx = memoryCanvas.getContext('2d');
+            const width = memoryCanvas.width;
+            const height = memoryCanvas.height;
+            
+            // 清除画布
+            memoryCtx.clearRect(0, 0, width, height);
+            
+            // 绘制背景
+            memoryCtx.fillStyle = '#1a1a2a';
+            memoryCtx.fillRect(0, 0, width, height);
+            
+            // 绘制波形
+            memoryCtx.beginPath();
+            
+            for (let i = 0; i < memoryHistory.length; i++) {
+                const memory = memoryHistory[(historyIndex + i) % memoryHistory.length];
+                
+                const x = i * width / memoryHistory.length;
+                const y = height - (memory / 100) * height;
+                
+                // 根据内存值设置颜色
+                if (memory < 50) {
+                    memoryCtx.strokeStyle = '#44FF44';
+                } else if (memory < 80) {
+                    memoryCtx.strokeStyle = '#FFAA44';
+                } else {
+                    memoryCtx.strokeStyle = '#FF4444';
+                }
+                
+                if (i === 0) {
+                    memoryCtx.moveTo(x, y);
+                } else {
+                    memoryCtx.lineTo(x, y);
+                }
+            }
+            
+            memoryCtx.lineWidth = 2;
+            memoryCtx.stroke();
+            
+            // 绘制当前内存值
+            const currentMemory = memoryHistory[historyIndex];
+            memoryCtx.fillStyle = '#FFFFFF';
+            memoryCtx.font = '12px Consolas';
+            memoryCtx.fillText(`内存: ${Math.round(currentMemory)}%`, 5, 15);
+        }
+        
+        function drawGPUGraph() {
+            const gpuCanvas = document.getElementById('gpu-graph');
+            const gpuCtx = gpuCanvas.getContext('2d');
+            const width = gpuCanvas.width;
+            const height = gpuCanvas.height;
+            
+            // 清除画布
+            gpuCtx.clearRect(0, 0, width, height);
+            
+            // 绘制背景
+            gpuCtx.fillStyle = '#1a1a2a';
+            gpuCtx.fillRect(0, 0, width, height);
+            
+            // 绘制波形
+            gpuCtx.beginPath();
+            
+            for (let i = 0; i < gpuHistory.length; i++) {
+                const gpu = gpuHistory[(historyIndex + i) % gpuHistory.length];
+                
+                const x = i * width / gpuHistory.length;
+                const y = height - (gpu / 100) * height;
+                
+                // 根据GPU值设置颜色
+                if (gpu < 30) {
+                    gpuCtx.strokeStyle = '#44FF44';
+                } else if (gpu < 70) {
+                    gpuCtx.strokeStyle = '#FFAA44';
+                } else {
+                    gpuCtx.strokeStyle = '#FF4444';
+                }
+                
+                if (i === 0) {
+                    gpuCtx.moveTo(x, y);
+                } else {
+                    gpuCtx.lineTo(x, y);
+                }
+            }
+            
+            gpuCtx.lineWidth = 2;
+            gpuCtx.stroke();
+            
+            // 绘制当前GPU值
+            const currentGPU = gpuHistory[historyIndex];
+            gpuCtx.fillStyle = '#FFFFFF';
+            gpuCtx.font = '12px Consolas';
+            gpuCtx.fillText(`GPU: ${Math.round(currentGPU)}%`, 5, 15);
+        }
+        
+        function updatePerformanceHistory(fps, cpu, memory, gpu) {
+            fpsHistory[historyIndex] = fps;
+            cpuHistory[historyIndex] = cpu;
+            memoryHistory[historyIndex] = memory;
+            gpuHistory[historyIndex] = gpu;
+            historyIndex = (historyIndex + 1) % fpsHistory.length;
+            
+            drawFPSGraph();
+            if (isFpsExpanded) {
+                drawCPUGraph();
+                drawMemoryGraph();
+                drawGPUGraph();
+            }
+        }
+        
+        // ==================== FPS图表展开/收起功能 ====================
+        function toggleFPSExpanded() {
+            const fpsContainer = document.getElementById('fps-graph-container');
+            const expandBtn = document.getElementById('expand-btn');
+            
+            isFpsExpanded = !isFpsExpanded;
+            
+            if (isFpsExpanded) {
+                // 展开状态
+                fpsContainer.classList.add('expanded');
+                expandBtn.textContent = '点击收起';
+            } else {
+                // 收起状态
+                fpsContainer.classList.remove('expanded');
+                expandBtn.textContent = '点击展开';
+            }
+            
+            // 重新调整画布大小
+            resizeCanvas();
+        }
+        
+        // ==================== 初始化粒子 ====================
+        function initParticles(count) {
+            // 清除现有粒子
+            particles.forEach(particle => {
+                particle.removeFromScene();
+            });
+            particles = [];
+            particleMeshes = [];
+            
+            const halfWorld = WORLD_SIZE / 2;
+            
+            for (let i = 0; i < count; i++) {
+                const colorIndex = Math.floor(Math.random() * colors.length);
+                const x = (Math.random() - 0.5) * WORLD_SIZE;
+                const y = (Math.random() - 0.5) * WORLD_SIZE;
+                const z = (Math.random() - 0.5) * WORLD_SIZE;
+                
+                const particle = new Particle3D(x, y, z, colors[colorIndex].value, colorIndex);
+                particles.push(particle);
+                particleMeshes.push(particle.mesh);
+                scene.add(particle.mesh);
+            }
+            
+            updateStats();
+            updateColorList();
+        }
+        
+        // 重置模拟
+        function resetSimulation() {
+            initParticles(particles.length);
+        }
+        
+        // ==================== 边界模式控制 ====================
+        function initBoundaryModeControls() {
+            const boundaryButtons = document.querySelectorAll('.boundary-mode-btn');
+            const currentModeDisplay = document.getElementById('current-boundary-mode');
+            const repelSettings = document.getElementById('repel-boundary-settings');
+            const perfBoundaryMode = document.getElementById('perf-boundary-mode');
+            const statBoundaryMode = document.getElementById('stat-boundary-mode');
+            
+            // 边界模式按钮点击事件
+            boundaryButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const mode = this.getAttribute('data-mode');
+                    
+                    // 更新活动按钮
+                    boundaryButtons.forEach(btn => btn.classList.remove('active'));
+                    this.classList.add('active');
+                    
+                    // 更新边界模式
+                    boundaryMode = mode;
+                    
+                    // 更新显示
+                    let modeName = '';
+                    switch(mode) {
+                        case 'wrap':
+                            modeName = '循环边界';
+                            repelSettings.style.display = 'none';
+                            break;
+                        case 'bounce':
+                            modeName = '碰撞边界';
+                            repelSettings.style.display = 'none';
+                            break;
+                        case 'repel':
+                            modeName = '排斥边界';
+                            repelSettings.style.display = 'block';
+                            break;
+                    }
+                    
+                    if (currentModeDisplay) currentModeDisplay.textContent = modeName;
+                    if (perfBoundaryMode) perfBoundaryMode.textContent = modeName;
+                    if (statBoundaryMode) statBoundaryMode.textContent = modeName;
+                    
+                    console.log(`边界模式已切换为: ${modeName}`);
+                });
+            });
+            
+            // 排斥力强度控制
+            const repelStrengthSlider = document.getElementById('repel-strength');
+            const repelStrengthValue = document.getElementById('repel-strength-value');
+            
+            repelStrengthSlider.addEventListener('input', function() {
+                repelStrength = parseFloat(this.value);
+                repelStrengthValue.textContent = repelStrength;
+            });
+            
+            // 排斥力作用范围控制
+            const repelRangeSlider = document.getElementById('repel-range');
+            const repelRangeValue = document.getElementById('repel-range-value');
+            
+            repelRangeSlider.addEventListener('input', function() {
+                repelRange = parseInt(this.value);
+                repelRangeValue.textContent = repelRange;
+            });
+        }
+        
+        // ==================== 3D地图预设 ====================
+        function createRandom3DMap(count) {
+            // 清除现有粒子
+            particles.forEach(particle => {
+                particle.removeFromScene();
+            });
+            particles = [];
+            particleMeshes = [];
+            
+            const halfWorld = WORLD_SIZE / 2;
+            
+            for (let i = 0; i < count; i++) {
+                const colorIndex = Math.floor(Math.random() * colors.length);
+                const x = (Math.random() - 0.5) * WORLD_SIZE;
+                const y = (Math.random() - 0.5) * WORLD_SIZE;
+                const z = (Math.random() - 0.5) * WORLD_SIZE;
+                
+                const particle = new Particle3D(x, y, z, colors[colorIndex].value, colorIndex);
+                particles.push(particle);
+                particleMeshes.push(particle.mesh);
+                scene.add(particle.mesh);
+            }
+            
+            updateColorList();
+            updateStats();
+        }
+        
+        function createSphere3DMap(count) {
+            particles.forEach(particle => {
+                particle.removeFromScene();
+            });
+            particles = [];
+            particleMeshes = [];
+            
+            const radius = WORLD_SIZE * 0.4;
+            
+            for (let i = 0; i < count; i++) {
+                const colorIndex = Math.floor(Math.random() * colors.length);
+                
+                // 在球体内均匀分布粒子
+                const u = Math.random();
+                const v = Math.random();
+                const w = Math.random();
+                
+                const theta = u * 2.0 * Math.PI;
+                const phi = Math.acos(2.0 * v - 1.0);
+                const r = Math.cbrt(w) * radius;
+                
+                const x = r * Math.sin(phi) * Math.cos(theta);
+                const y = r * Math.sin(phi) * Math.sin(theta);
+                const z = r * Math.cos(phi);
+                
+                const particle = new Particle3D(x, y, z, colors[colorIndex].value, colorIndex);
+                particles.push(particle);
+                particleMeshes.push(particle.mesh);
+                scene.add(particle.mesh);
+            }
+            
+            updateColorList();
+            updateStats();
+        }
+        
+        function createCube3DMap(count) {
+            particles.forEach(particle => {
+                particle.removeFromScene();
+            });
+            particles = [];
+            particleMeshes = [];
+            
+            const halfSize = WORLD_SIZE * 0.4;
+            
+            for (let i = 0; i < count; i++) {
+                const colorIndex = Math.floor(Math.random() * colors.length);
+                const x = (Math.random() - 0.5) * halfSize * 2;
+                const y = (Math.random() - 0.5) * halfSize * 2;
+                const z = (Math.random() - 0.5) * halfSize * 2;
+                
+                const particle = new Particle3D(x, y, z, colors[colorIndex].value, colorIndex);
+                particles.push(particle);
+                particleMeshes.push(particle.mesh);
+                scene.add(particle.mesh);
+            }
+            
+            updateColorList();
+            updateStats();
+        }
+        
+        function createCylinder3DMap(count) {
+            particles.forEach(particle => {
+                particle.removeFromScene();
+            });
+            particles = [];
+            particleMeshes = [];
+            
+            const radius = WORLD_SIZE * 0.4;
+            const height = WORLD_SIZE * 0.6;
+            
+            for (let i = 0; i < count; i++) {
+                const colorIndex = Math.floor(Math.random() * colors.length);
+                
+                // 在圆柱体内分布粒子
+                const angle = Math.random() * 2 * Math.PI;
+                const r = Math.sqrt(Math.random()) * radius;
+                const h = (Math.random() - 0.5) * height;
+                
+                const x = r * Math.cos(angle);
+                const y = h;
+                const z = r * Math.sin(angle);
+                
+                const particle = new Particle3D(x, y, z, colors[colorIndex].value, colorIndex);
+                particles.push(particle);
+                particleMeshes.push(particle.mesh);
+                scene.add(particle.mesh);
+            }
+            
+            updateColorList();
+            updateStats();
+        }
+        
+        function createSpiral3DMap(count) {
+            particles.forEach(particle => {
+                particle.removeFromScene();
+            });
+            particles = [];
+            particleMeshes = [];
+            
+            const maxRadius = WORLD_SIZE * 0.4;
+            const turns = 5;
+            
+            for (let i = 0; i < count; i++) {
+                const colorIndex = Math.floor(Math.random() * colors.length);
+                const t = i / count;
+                const angle = t * Math.PI * 2 * turns;
+                const radius = t * maxRadius;
+                const height = (t - 0.5) * WORLD_SIZE * 0.6;
+                
+                const x = Math.cos(angle) * radius;
+                const y = height;
+                const z = Math.sin(angle) * radius;
+                
+                const particle = new Particle3D(x, y, z, colors[colorIndex].value, colorIndex);
+                particles.push(particle);
+                particleMeshes.push(particle.mesh);
+                scene.add(particle.mesh);
+            }
+            
+            updateColorList();
+            updateStats();
+        }
+        
+        function createPlane3DMap(count) {
+            particles.forEach(particle => {
+                particle.removeFromScene();
+            });
+            particles = [];
+            particleMeshes = [];
+            
+            const size = WORLD_SIZE * 0.8;
+            
+            for (let i = 0; i < count; i++) {
+                const colorIndex = Math.floor(Math.random() * colors.length);
+                const x = (Math.random() - 0.5) * size;
+                const y = 0; // 所有粒子在平面上
+                const z = (Math.random() - 0.5) * size;
+                
+                const particle = new Particle3D(x, y, z, colors[colorIndex].value, colorIndex);
+                particles.push(particle);
+                particleMeshes.push(particle.mesh);
+                scene.add(particle.mesh);
+            }
+            
+            updateColorList();
+            updateStats();
+        }
+        
+        // ==================== 优化的3D力场计算引擎 ====================
+        function applyRules() {
+            if (isPaused) return;
+            
+            const startTime = performance.now();
+            
+            // 预计算变量以提高性能
+            const forceRangeSq = forceRange * forceRange;
+            const minDistanceSq = minDistance * minDistance;
+            
+            // 计算每个粒子受到的力（简单实现，未优化）
+            for (let i = 0; i < particles.length; i++) {
+                const p1 = particles[i];
+                
+                for (let j = i + 1; j < particles.length; j++) {
+                    const p2 = particles[j];
+                    
+                    // 计算距离
+                    let dx = p2.x - p1.x;
+                    let dy = p2.y - p1.y;
+                    let dz = p2.z - p1.z;
+                    
+                    // 处理边界循环
+                    const halfWorld = WORLD_SIZE / 2;
+                    if (boundaryMode === 'wrap') {
+                        if (dx > halfWorld) dx -= WORLD_SIZE;
+                        if (dx < -halfWorld) dx += WORLD_SIZE;
+                        if (dy > halfWorld) dy -= WORLD_SIZE;
+                        if (dy < -halfWorld) dy += WORLD_SIZE;
+                        if (dz > halfWorld) dz -= WORLD_SIZE;
+                        if (dz < -halfWorld) dz += WORLD_SIZE;
+                    }
+                    
+                    const distanceSq = dx * dx + dy * dy + dz * dz;
+                    
+                    // 快速跳过太远的粒子
+                    if (distanceSq > forceRangeSq) continue;
+                    
+                    const distance = Math.sqrt(distanceSq);
+                    
+                    if (distance === 0) continue;
+                    
+                    // 使用高精度极限排斥力公式
+                    if (distance < minDistance) {
+                        // 极限排斥力公式：force = (1 - distance/minDistance) * 排斥强度
+                        const repulsionStrength = 5.0; // 与particlelife.com完全相同的排斥强度
+                        const repulsionForce = repulsionStrength * (1 - distance / minDistance);
+                        const factor = repulsionForce / distance * timeStep;
+                        
+                        // 使用更高精度的计算
+                        p1.vx -= dx * factor;
+                        p1.vy -= dy * factor;
+                        p1.vz -= dz * factor;
+                        
+                        p2.vx += dx * factor;
+                        p2.vy += dy * factor;
+                        p2.vz += dz * factor;
+                    }
+                    
+                    // 规则力（在作用范围内）
+                    if (distance < forceRange) {
+                        // 获取规则力
+                        const force12 = rules[p1.color] && rules[p1.color][p2.color] ? 
+                                      Math.max(-1.0, Math.min(1.0, rules[p1.color][p2.color])) : 0;
+                        const force21 = rules[p2.color] && rules[p2.color][p1.color] ? 
+                                      Math.max(-1.0, Math.min(1.0, rules[p2.color][p1.color])) : 0;
+                        
+                        // 力场公式：force * (1 - distance/forceRange)
+                        if (force12 !== 0) {
+                            const strength = force12 * forceStrength * (1 - distance / forceRange) * timeStep;
+                            const factor = strength / distance;
+                            
+                            p1.vx += dx * factor;
+                            p1.vy += dy * factor;
+                            p1.vz += dz * factor;
+                        }
+                        
+                        if (force21 !== 0) {
+                            const strength = force21 * forceStrength * (1 - distance / forceRange) * timeStep;
+                            const factor = strength / distance;
+                            
+                            p2.vx -= dx * factor;
+                            p2.vy -= dy * factor;
+                            p2.vz -= dz * factor;
+                        }
+                    }
+                }
+            }
+            
+            // 记录计算时间
+            const computeTime = performance.now() - startTime;
+            if (computeTime > 0) {
+                document.getElementById('perf-compute').textContent = 
+                    `${Math.round(computeTime)}ms`;
+            }
+        }
+        
+        // ==================== 颜色管理 ====================
+        function addColor(name, value) {
+            if (colors.length >= 8) {
+                alert('最多只能添加8种颜色！');
+                return false;
+            }
+            
+            // 验证颜色值
+            const colorRegex = /^#([0-9A-F]{3}){1,2}$/i;
+            if (!colorRegex.test(value)) {
+                const tempDiv = document.createElement('div');
+                tempDiv.style.color = value;
+                document.body.appendChild(tempDiv);
+                const computedColor = getComputedStyle(tempDiv).color;
+                document.body.removeChild(tempDiv);
+                
+                if (computedColor === 'rgb(0, 0, 0)' && value.toLowerCase() !== 'black') {
+                    alert('无效的颜色值！请使用有效的十六进制颜色代码（如#FF0000）或CSS颜色名称。');
+                    return false;
+                }
+                
+                const rgb = computedColor.match(/\d+/g);
+                value = `#${parseInt(rgb[0]).toString(16).padStart(2, '0')}${parseInt(rgb[1]).toString(16).padStart(2, '0')}${parseInt(rgb[2]).toString(16).padStart(2, '0')}`;
+            }
+            
+            // 检查是否已存在
+            for (const color of colors) {
+                if (color.value.toLowerCase() === value.toLowerCase()) {
+                    alert('该颜色已存在！');
+                    return false;
+                }
+            }
+            
+            // 添加颜色
+            const newColor = {
+                id: nextColorId++,
+                name: name,
+                value: value
+            };
+            colors.push(newColor);
+            
+            // 更新UI
+            updateColorList();
+            updateRuleSelectors();
+            updateMatrixDisplay();
+            updateStats();
+            
+            return true;
+        }
+        
+        function removeColor(colorId) {
+            if (colors.length <= 2) {
+                alert('必须至少保留两种颜色！');
+                return;
+            }
+            
+            const colorIndex = colors.findIndex(c => c.id === colorId);
+            if (colorIndex === -1) return;
+            
+            const colorValue = colors[colorIndex].value;
+            
+            // 移除相关规则
+            for (const color1 in rules) {
+                if (rules[color1][colorValue]) {
+                    delete rules[color1][colorValue];
+                }
+            }
+            delete rules[colorValue];
+            
+            // 移除颜色
+            colors.splice(colorIndex, 1);
+            
+            // 重新分配粒子颜色
+            for (const particle of particles) {
+                if (particle.colorIndex >= colorIndex) {
+                    particle.colorIndex = Math.max(0, particle.colorIndex - 1);
+                    particle.color = colors[particle.colorIndex].value;
+                    
+                    // 更新粒子材质颜色
+                    particle.mesh.material.color.set(particle.color);
+                    particle.mesh.material.emissive.set(particle.color).multiplyScalar(0.2);
+                }
+            }
+            
+            // 更新UI
+            updateColorList();
+            updateRuleSelectors();
+            updateMatrixDisplay();
+            updateStats();
+        }
+        
+        function updateColorList() {
+            const container = document.getElementById('color-list');
+            if (!container) return;
+            
+            container.innerHTML = '';
+            
+            // 统计颜色数量
+            const colorCounts = {};
+            for (const particle of particles) {
+                const colorValue = particle.color;
+                colorCounts[colorValue] = (colorCounts[colorValue] || 0) + 1;
+            }
+            
+            // 创建颜色项
+            for (const color of colors) {
+                const colorItem = document.createElement('div');
+                colorItem.className = 'color-item';
+                colorItem.style.borderLeftColor = color.value;
+                
+                const colorPreview = document.createElement('div');
+                colorPreview.className = 'color-preview';
+                colorPreview.style.backgroundColor = color.value;
+                
+                const colorName = document.createElement('div');
+                colorName.className = 'color-name';
+                colorName.textContent = color.name;
+                
+                const colorCount = document.createElement('div');
+                colorCount.className = 'color-count';
+                colorCount.textContent = `${colorCounts[color.value] || 0}`;
+                
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'delete-color-btn';
+                deleteBtn.textContent = '删除';
+                deleteBtn.onclick = () => removeColor(color.id);
+                
+                colorItem.appendChild(colorPreview);
+                colorItem.appendChild(colorName);
+                colorItem.appendChild(colorCount);
+                colorItem.appendChild(deleteBtn);
+                
+                container.appendChild(colorItem);
+            }
+            
+            updateStat('stat-color-count', colors.length);
+        }
+        
+        function updateRuleSelectors() {
+            const color1Select = document.getElementById('rule-color1');
+            const color2Select = document.getElementById('rule-color2');
+            
+            if (!color1Select || !color2Select) return;
+            
+            color1Select.innerHTML = '';
+            color2Select.innerHTML = '';
+            
+            for (const color of colors) {
+                const option1 = document.createElement('option');
+                option1.value = color.value;
+                option1.textContent = color.name;
+                color1Select.appendChild(option1.cloneNode(true));
+                
+                const option2 = document.createElement('option');
+                option2.value = color.value;
+                option2.textContent = color.name;
+                color2Select.appendChild(option2);
+            }
+            
+            updateColorPreviews();
+        }
+        
+        function updateColorPreviews() {
+            const color1Select = document.getElementById('rule-color1');
+            const color2Select = document.getElementById('rule-color2');
+            const newColorValue = document.getElementById('new-color-value');
+            
+            if (color1Select) {
+                const preview1 = document.getElementById('rule-color1-preview');
+                if (preview1) preview1.style.backgroundColor = color1Select.value;
+            }
+            
+            if (color2Select) {
+                const preview2 = document.getElementById('rule-color2-preview');
+                if (preview2) preview2.style.backgroundColor = color2Select.value;
+            }
+            
+            if (newColorValue) {
+                const newPreview = document.getElementById('new-color-preview');
+                if (newPreview) newPreview.style.backgroundColor = newColorValue.value;
+            }
+        }
+        
+        // ==================== 规则管理系统 ====================
+        function addRule(color1, color2, force) {
+            // 限制力在-1.0到1.0之间
+            force = Math.max(-1.0, Math.min(1.0, force));
+            
+            if (!rules[color1]) {
+                rules[color1] = {};
+            }
+            rules[color1][color2] = force;
+            updateMatrixDisplay();
+            updateStats();
+        }
+        
+        function removeRule(color1, color2) {
+            if (rules[color1] && rules[color1][color2]) {
+                delete rules[color1][color2];
+                updateMatrixDisplay();
+                updateStats();
+            }
+        }
+        
+        // 清除所有规则
+        function clearAllRules() {
+            if (confirm('确定要删除所有规则吗？这将重置整个规则矩阵。')) {
+                rules = {};
+                updateMatrixDisplay();
+                updateStats();
+            }
+        }
+        
+        // 随机填充所有规则
+        function randomFillRules() {
+            if (!confirm('确定要用随机值填充所有规则吗？这将覆盖现有的所有规则。')) {
+                return;
+            }
+            
+            // 清除现有规则
+            rules = {};
+            
+            // 为每个颜色组合添加随机规则
+            for (let i = 0; i < colors.length; i++) {
+                for (let j = 0; j < colors.length; j++) {
+                    // 生成-1.0到1.0之间的随机值，保留一位小数
+                    const randomForce = Math.round((Math.random() * 2 - 1) * 10) / 10;
+                    addRule(colors[i].value, colors[j].value, randomForce);
+                }
+            }
+            
+            updateMatrixDisplay();
+            updateStats();
+            alert(`已用随机值填充了 ${colors.length * colors.length} 个规则单元格！`);
+        }
+        
+        // 选择矩阵单元格
+        function selectMatrixCell(row, col) {
+            // 清除之前的选择
+            document.querySelectorAll('.matrix-table td').forEach(cell => {
+                cell.classList.remove('selected-cell');
+            });
+            
+            // 设置新的选择
+            const table = document.getElementById('rules-table');
+            if (table && table.rows[row] && table.rows[row].cells[col]) {
+                const cell = table.rows[row].cells[col];
+                cell.classList.add('selected-cell');
+                selectedCell = { row, col };
+                
+                // 显示选中单元格编辑器
+                const editor = document.getElementById('selected-cell-editor');
+                editor.classList.add('active');
+                
+                // 设置编辑器中的值
+                const rowColor = colors[row - 1];
+                const colColor = colors[col - 1];
+                
+                document.getElementById('selected-row-color').textContent = rowColor ? rowColor.name : '-';
+                document.getElementById('selected-col-color').textContent = colColor ? colColor.name : '-';
+                
+                const force = rules[rowColor.value] && rules[rowColor.value][colColor.value] ? 
+                            rules[rowColor.value][colColor.value] : 0;
+                document.getElementById('selected-cell-value').value = force.toFixed(1);
+            }
+        }
+        
+        // 更新选中的单元格
+        function updateSelectedCell() {
+            if (!selectedCell) return;
+            
+            const value = parseFloat(document.getElementById('selected-cell-value').value);
+            if (isNaN(value) || value < -1.0 || value > 1.0) {
+                alert('作用力必须在-1.0到1.0之间！');
+                return;
+            }
+            
+            const rowColor = colors[selectedCell.row - 1];
+            const colColor = colors[selectedCell.col - 1];
+            
+            if (rowColor && colColor) {
+                addRule(rowColor.value, colColor.value, value);
+            }
+        }
+        
+        // 更新矩阵显示
+        function updateMatrixDisplay() {
+            const table = document.getElementById('rules-table');
+            if (!table) return;
+            
+            table.innerHTML = '';
+            
+            // 创建表头
+            const headerRow = document.createElement('tr');
+            const emptyHeader = document.createElement('th');
+            emptyHeader.textContent = '→';
+            emptyHeader.className = 'sticky-header';
+            headerRow.appendChild(emptyHeader);
+            
+            for (const color of colors) {
+                const th = document.createElement('th');
+                th.className = 'sticky-header';
+                th.innerHTML = `<div class="matrix-color" style="background-color: ${color.value};"></div><div>${color.name}</div>`;
+                headerRow.appendChild(th);
+            }
+            table.appendChild(headerRow);
+            
+            // 创建数据行
+            for (let i = 0; i < colors.length; i++) {
+                const color1 = colors[i];
+                const row = document.createElement('tr');
+                
+                // 行标题
+                const rowHeader = document.createElement('th');
+                rowHeader.innerHTML = `<div class="matrix-color" style="background-color: ${color1.value};"></div><div>${color1.name}</div>`;
+                rowHeader.className = 'sticky-header';
+                row.appendChild(rowHeader);
+                
+                // 数据单元格
+                for (let j = 0; j < colors.length; j++) {
+                    const color2 = colors[j];
+                    const cell = document.createElement('td');
+                    
+                    // 获取规则值
+                    const force = rules[color1.value] && rules[color1.value][color2.value] ? 
+                                 rules[color1.value][color2.value] : 0;
+                    
+                    // 设置单元格样式
+                    if (force > 0) {
+                        cell.classList.add('attract-cell');
+                    } else if (force < 0) {
+                        cell.classList.add('repel-cell');
+                    }
+                    
+                    if (i === j) {
+                        cell.classList.add('self-cell');
+                    }
+                    
+                    // 创建单元格内容
+                    const valueSpan = document.createElement('span');
+                    valueSpan.className = 'cell-value';
+                    valueSpan.textContent = force.toFixed(1);
+                    
+                    // 单击事件：选择单元格
+                    let clickTimer = null;
+                    cell.addEventListener('click', function(e) {
+                        if (clickTimer) return;
+                        
+                        clickTimer = setTimeout(function() {
+                            selectMatrixCell(i + 1, j + 1);
+                            clickTimer = null;
+                        }, 250);
+                    });
+                    
+                    // 双击事件：循环切换值
+                    cell.addEventListener('dblclick', function(e) {
+                        clearTimeout(clickTimer);
+                        clickTimer = null;
+                        
+                        let newForce;
+                        if (force === 0) {
+                            newForce = 0.5;
+                        } else if (force > 0) {
+                            newForce = -0.5;
+                        } else {
+                            newForce = 0;
+                        }
+                        
+                        newForce = Math.max(-1.0, Math.min(1.0, newForce));
+                        addRule(color1.value, color2.value, newForce);
+                    });
+                    
+                    cell.appendChild(valueSpan);
+                    row.appendChild(cell);
+                }
+                
+                table.appendChild(row);
+            }
+            
+            if (selectedCell) {
+                selectMatrixCell(selectedCell.row, selectedCell.col);
+            }
+        }
+        
+        // ==================== 模拟控制 ====================
+        function togglePause() {
+            isPaused = !isPaused;
+            const btn = document.getElementById('play-pause-btn');
+            const pauseBtn = document.getElementById('pause-btn');
+            const stateElement = document.getElementById('perf-state');
+            const statState = document.getElementById('stat-sim-state');
+            
+            if (isPaused) {
+                btn.classList.remove('playing');
+                btn.classList.add('paused');
+                pauseBtn.textContent = '继续模拟';
+                if (stateElement) stateElement.textContent = '已暂停';
+                if (stateElement) stateElement.style.color = '#FFAA44';
+                if (statState) statState.textContent = '已暂停';
+                if (statState) statState.style.color = '#FFAA44';
+            } else {
+                btn.classList.remove('paused');
+                btn.classList.add('playing');
+                pauseBtn.textContent = '暂停模拟';
+                if (stateElement) stateElement.textContent = '运行中';
+                if (stateElement) stateElement.style.color = '#4CAF50';
+                if (statState) statState.textContent = '运行中';
+                if (statState) statState.style.color = '#4CAF50';
+            }
+        }
+        
+        function stepSimulation() {
+            if (isPaused) {
+                applyRules();
+                for (let i = 0; i < particles.length; i++) {
+                    particles[i].update();
+                }
+            }
+        }
+        
+        // ==================== 预设规则 ====================
+        function setupPresets() {
+            // 3D地图预设
+            document.getElementById('preset-random-3d').addEventListener('click', function() {
+                createRandom3DMap(particles.length);
+            });
+            
+            document.getElementById('preset-sphere-3d').addEventListener('click', function() {
+                createSphere3DMap(particles.length);
+            });
+            
+            document.getElementById('preset-cube-3d').addEventListener('click', function() {
+                createCube3DMap(particles.length);
+            });
+            
+            document.getElementById('preset-cylinder-3d').addEventListener('click', function() {
+                createCylinder3DMap(particles.length);
+            });
+            
+            document.getElementById('preset-spiral-3d').addEventListener('click', function() {
+                createSpiral3DMap(particles.length);
+            });
+            
+            document.getElementById('preset-plane-3d').addEventListener('click', function() {
+                createPlane3DMap(particles.length);
+            });
+            
+            // 3D经典规则预设
+            document.getElementById('preset-snake-3d').addEventListener('click', function() {
+                clearAllRules();
+                if (colors.length >= 2) {
+                    addRule(colors[0].value, colors[0].value, 0.8);
+                    addRule(colors[0].value, colors[1].value, -0.5);
+                    addRule(colors[1].value, colors[0].value, 0.3);
+                    addRule(colors[1].value, colors[1].value, -0.2);
+                }
+            });
+            
+            document.getElementById('preset-cell-3d').addEventListener('click', function() {
+                clearAllRules();
+                if (colors.length >= 3) {
+                    addRule(colors[0].value, colors[0].value, -0.6);
+                    addRule(colors[0].value, colors[1].value, 0.8);
+                    addRule(colors[1].value, colors[0].value, -0.5);
+                    addRule(colors[1].value, colors[1].value, -0.3);
+                    addRule(colors[1].value, colors[2].value, 0.5);
+                    addRule(colors[2].value, colors[1].value, 0.3);
+                    addRule(colors[2].value, colors[2].value, -0.4);
+                }
+            });
+            
+            document.getElementById('preset-moving-cell-3d').addEventListener('click', function() {
+                clearAllRules();
+                if (colors.length >= 3) {
+                    addRule(colors[0].value, colors[0].value, -0.5);
+                    addRule(colors[0].value, colors[1].value, 0.8);
+                    addRule(colors[1].value, colors[0].value, -0.8);
+                    addRule(colors[1].value, colors[1].value, -0.2);
+                    addRule(colors[1].value, colors[2].value, 0.6);
+                    addRule(colors[2].value, colors[1].value, 0.2);
+                    addRule(colors[2].value, colors[2].value, -0.3);
+                    addRule(colors[2].value, colors[0].value, 0.4);
+                }
+            });
+            
+            document.getElementById('preset-ecosystem-3d').addEventListener('click', function() {
+                clearAllRules();
+                if (colors.length >= 3) {
+                    addRule(colors[0].value, colors[0].value, -0.4);
+                    addRule(colors[0].value, colors[1].value, 0.6);
+                    addRule(colors[0].value, colors[2].value, -0.2);
+                    
+                    addRule(colors[1].value, colors[0].value, -0.5);
+                    addRule(colors[1].value, colors[1].value, -0.1);
+                    addRule(colors[1].value, colors[2].value, 0.5);
+                    
+                    addRule(colors[2].value, colors[0].value, 0.3);
+                    addRule(colors[2].value, colors[1].value, 0.4);
+                    addRule(colors[2].value, colors[2].value, -0.3);
+                }
+            });
+            
+            document.getElementById('preset-oscillator-3d').addEventListener('click', function() {
+                clearAllRules();
+                if (colors.length >= 2) {
+                    addRule(colors[0].value, colors[0].value, -0.4);
+                    addRule(colors[0].value, colors[1].value, 0.8);
+                    addRule(colors[1].value, colors[0].value, -0.8);
+                    addRule(colors[1].value, colors[1].value, -0.3);
+                }
+            });
+            
+            document.getElementById('preset-swarm-3d').addEventListener('click', function() {
+                clearAllRules();
+                for (let i = 0; i < colors.length; i++) {
+                    for (let j = 0; j < colors.length; j++) {
+                        if (i === j) {
+                            addRule(colors[i].value, colors[j].value, -0.2);
+                        } else {
+                            addRule(colors[i].value, colors[j].value, 0.5);
+                        }
+                    }
+                }
+            });
+            
+            document.getElementById('preset-chaos-3d').addEventListener('click', function() {
+                clearAllRules();
+                for (let i = 0; i < colors.length; i++) {
+                    for (let j = 0; j < colors.length; j++) {
+                        const force = (Math.random() - 0.5) * 2;
+                        addRule(colors[i].value, colors[j].value, force);
+                    }
+                }
+            });
+            
+            document.getElementById('preset-symmetry-3d').addEventListener('click', function() {
+                clearAllRules();
+                for (let i = 0; i < colors.length; i++) {
+                    for (let j = 0; j < colors.length; j++) {
+                        if (i === j) {
+                            addRule(colors[i].value, colors[j].value, -0.5);
+                        } else if (Math.abs(i - j) === 1) {
+                            addRule(colors[i].value, colors[j].value, 0.6);
+                        } else {
+                            addRule(colors[i].value, colors[j].value, -0.1);
+                        }
+                    }
+                }
+            });
+            
+            document.getElementById('preset-life-3d').addEventListener('click', function() {
+                clearAllRules();
+                if (colors.length >= 2) {
+                    addRule(colors[0].value, colors[0].value, -0.6);
+                    addRule(colors[0].value, colors[1].value, 0.8);
+                    addRule(colors[1].value, colors[0].value, 0.2);
+                    addRule(colors[1].value, colors[1].value, -0.4);
+                }
+            });
+            
+            // 规则编辑器
+            document.getElementById('set-rule').addEventListener('click', function() {
+                const color1 = document.getElementById('rule-color1').value;
+                const color2 = document.getElementById('rule-color2').value;
+                const force = parseFloat(document.getElementById('rule-force').value);
+                
+                if (isNaN(force) || force < -1.0 || force > 1.0) {
+                    alert('作用力必须在-1.0到1.0之间！');
+                    return;
+                }
+                
+                addRule(color1, color2, force);
+                document.getElementById('rule-force').value = "0.5";
+            });
+            
+            // 随机填充规则按钮
+            document.getElementById('random-fill-rules').addEventListener('click', randomFillRules);
+            
+            // 删除所有规则按钮
+            document.getElementById('clear-all-rules').addEventListener('click', clearAllRules);
+            
+            // 更新选中单元格按钮
+            document.getElementById('update-selected-cell').addEventListener('click', updateSelectedCell);
+            
+            // 选中单元格值输入框
+            document.getElementById('selected-cell-value').addEventListener('change', updateSelectedCell);
+            
+            // 添加颜色按钮
+            document.getElementById('add-color').addEventListener('click', function() {
+                const name = document.getElementById('new-color-name').value.trim();
+                const value = document.getElementById('new-color-value').value.trim();
+                
+                if (!name) {
+                    alert('请输入颜色名称！');
+                    return;
+                }
+                
+                if (!value) {
+                    alert('请输入颜色值！');
+                    return;
+                }
+                
+                if (addColor(name, value)) {
+                    document.getElementById('new-color-name').value = '';
+                    document.getElementById('new-color-value').value = '#FFFFFF';
+                    document.getElementById('new-color-preview').style.backgroundColor = '#FFFFFF';
+                }
+            });
+            
+            // 颜色值预览
+            document.getElementById('new-color-value').addEventListener('input', function() {
+                const preview = document.getElementById('new-color-preview');
+                if (preview) preview.style.backgroundColor = this.value;
+            });
+            
+            // 背景颜色预览
+            document.getElementById('bg-color').addEventListener('input', function() {
+                backgroundColor = this.value;
+                scene.background = new THREE.Color(backgroundColor);
+                document.getElementById('bg-color-preview').style.backgroundColor = backgroundColor;
+            });
+            
+            // 暂停/播放按钮
+            document.getElementById('play-pause-btn').addEventListener('click', togglePause);
+            document.getElementById('pause-btn').addEventListener('click', togglePause);
+            
+            // 单步执行按钮
+            document.getElementById('step-btn').addEventListener('click', stepSimulation);
+            
+            // 重置模拟按钮
+            document.getElementById('reset-sim').addEventListener('click', resetSimulation);
+            
+            // FPS图表展开/收起
+            document.getElementById('fps-graph-container').addEventListener('click', function(e) {
+                if (e.target.id === 'expand-btn' || e.target.id === 'fps-graph-title') {
+                    toggleFPSExpanded();
+                }
+            });
+        }
+        
+        // ==================== 统计信息 ====================
+        function updateStats() {
+            // 计算规则数量
+            let ruleCount = 0;
+            for (const color1 in rules) {
+                ruleCount += Object.keys(rules[color1]).length;
+            }
+            
+            // 更新统计信息
+            updateStat('stat-particle-count', particles.length);
+            updateStat('stat-rule-count', ruleCount);
+            updateStat('stat-color-count', colors.length);
+            updateStat('stat-min-distance', minDistance);
+            updateStat('stat-max-speed', maxSpeed.toFixed(1));
+            updateStat('stat-world-size', `${WORLD_SIZE}×${WORLD_SIZE}×${WORLD_SIZE}`);
+            
+            // 更新边界模式显示
+            let boundaryModeName = '';
+            switch(boundaryMode) {
+                case 'wrap': boundaryModeName = '循环边界'; break;
+                case 'bounce': boundaryModeName = '碰撞边界'; break;
+                case 'repel': boundaryModeName = '排斥边界'; break;
+            }
+            updateStat('stat-boundary-mode', boundaryModeName);
+            
+            // 更新性能监视器
+            document.getElementById('perf-particles').textContent = particles.length;
+            
+            // 更新模拟状态
+            const statState = document.getElementById('stat-sim-state');
+            if (statState) {
+                statState.textContent = isPaused ? '已暂停' : '运行中';
+                statState.style.color = isPaused ? '#FFAA44' : '#4CAF50';
+            }
+        }
+        
+        function updateStat(id, value) {
+            const element = document.getElementById(id);
+            if (element) {
+                element.textContent = value;
+            }
+        }
+        
+        // ==================== 动画循环 ====================
+        let lastTime = 0;
+        let frameCount = 0;
+        let fps = 0;
+        let lastFpsUpdate = 0;
+        let animationFrameId = null;
+        
+        function animate(currentTime) {
+            // 计算FPS
+            frameCount++;
+            if (currentTime - lastFpsUpdate >= 1000) {
+                fps = Math.round((frameCount * 1000) / (currentTime - lastFpsUpdate));
+                updateStat('stat-fps', fps);
+                document.getElementById('perf-fps').textContent = fps;
+                
+                // 模拟性能数据
+                const cpuUsage = Math.min(100, Math.max(0, Math.random() * 30 + (particles.length / 100) * 0.5));
+                const memoryUsage = Math.min(100, Math.max(0, Math.random() * 20 + (particles.length / 100) * 0.3));
+                const gpuUsage = Math.min(100, Math.max(0, Math.random() * 25 + (particles.length / 100) * 0.4));
+                
+                updatePerformanceHistory(fps, cpuUsage, memoryUsage, gpuUsage);
+                frameCount = 0;
+                lastFpsUpdate = currentTime;
+            }
+            
+            // 应用物理规则
+            applyRules();
+            
+            // 更新粒子位置
+            for (let i = 0; i < particles.length; i++) {
+                particles[i].update();
+            }
+            
+            // 更新轨道控制器
+            controls.update();
+            
+            // 渲染3D场景
+            const renderStart = performance.now();
+            renderer.render(scene, camera);
+            
+            // 记录渲染时间
+            const renderTime = Math.round(performance.now() - renderStart);
+            document.getElementById('perf-render').textContent = `${renderTime}ms`;
+            
+            animationFrameId = requestAnimationFrame(animate);
+        }
+        
+        // ==================== UI控制 ====================
+        function initUI() {
+            // 初始化官方调色盘
+            initOfficialPalette();
+            
+            // 时间步长控制
+            const timeStepSlider = document.getElementById('time-step');
+            const timeStepValueDisplay = document.getElementById('time-step-value');
+            
+            timeStepSlider.addEventListener('input', function() {
+                timeStep = parseFloat(this.value);
+                timeStepValueDisplay.textContent = timeStep.toFixed(2);
+            });
+            
+            // 模拟速度控制
+            const simSpeedSlider = document.getElementById('sim-speed');
+            const simSpeedValueDisplay = document.getElementById('sim-speed-value');
+            
+            simSpeedSlider.addEventListener('input', function() {
+                simSpeed = parseFloat(this.value);
+                simSpeedValueDisplay.textContent = simSpeed.toFixed(1);
+            });
+            
+            // 模拟区域大小控制
+            const worldSizeInput = document.getElementById('world-size');
+            
+            worldSizeInput.addEventListener('change', function() {
+                WORLD_SIZE = parseInt(this.value);
+                
+                // 更新网格和坐标轴
+                if (gridHelper) {
+                    scene.remove(gridHelper);
+                    gridHelper = new THREE.GridHelper(WORLD_SIZE * 2, 20, 0x444444, 0x222222);
+                    scene.add(gridHelper);
+                }
+                
+                if (axesHelper) {
+                    scene.remove(axesHelper);
+                    axesHelper = new THREE.AxesHelper(WORLD_SIZE);
+                    scene.add(axesHelper);
+                }
+                
+                resetSimulation();
+                updateStats();
+            });
+            
+            // 粒子数量控制
+            const particleCountSlider = document.getElementById('particle-count-slider');
+            const particleCountDisplay = document.getElementById('particle-count');
+            
+            particleCountSlider.addEventListener('input', function() {
+                const count = parseInt(this.value);
+                particleCountDisplay.textContent = count;
+                
+                if (animationFrameId) {
+                    cancelAnimationFrame(animationFrameId);
+                }
+                initParticles(count);
+                animationFrameId = requestAnimationFrame(animate);
+            });
+            
+            // 粒子大小控制
+            const particleSizeSlider = document.getElementById('particle-size');
+            const sizeValueDisplay = document.getElementById('size-value');
+            
+            particleSizeSlider.addEventListener('input', function() {
+                const size = parseFloat(this.value);
+                sizeValueDisplay.textContent = size.toFixed(1);
+                
+                for (const particle of particles) {
+                    // 更新粒子半径
+                    particle.radius = size;
+                    particle.mass = size * 0.5;
+                    
+                    // 更新几何体
+                    const oldMesh = particle.mesh;
+                    const geometry = new THREE.SphereGeometry(size, 16, 16);
+                    const material = oldMesh.material;
+                    
+                    particle.mesh = new THREE.Mesh(geometry, material);
+                    particle.mesh.position.copy(oldMesh.position);
+                    particle.mesh.castShadow = true;
+                    particle.mesh.receiveShadow = true;
+                    
+                    // 替换场景中的网格
+                    if (oldMesh.parent) {
+                        oldMesh.parent.remove(oldMesh);
+                    }
+                    scene.add(particle.mesh);
+                }
+            });
+            
+            // 最大速度控制
+            const maxSpeedSlider = document.getElementById('max-speed');
+            const maxSpeedValueDisplay = document.getElementById('max-speed-value');
+            
+            maxSpeedSlider.addEventListener('input', function() {
+                maxSpeed = parseFloat(this.value);
+                maxSpeedValueDisplay.textContent = maxSpeed.toFixed(1);
+                updateStat('stat-max-speed', maxSpeed.toFixed(1));
+            });
+            
+            // 力场范围控制
+            const forceRangeSlider = document.getElementById('force-range');
+            const rangeValueDisplay = document.getElementById('range-value');
+            
+            forceRangeSlider.addEventListener('input', function() {
+                forceRange = parseInt(this.value);
+                rangeValueDisplay.textContent = forceRange;
+            });
+            
+            // 力场强度控制
+            const forceStrengthSlider = document.getElementById('force-strength');
+            const strengthValueDisplay = document.getElementById('strength-value');
+            
+            forceStrengthSlider.addEventListener('input', function() {
+                forceStrength = parseFloat(this.value);
+                strengthValueDisplay.textContent = forceStrength.toFixed(1);
+            });
+            
+            // 最小距离控制
+            const minDistanceSlider = document.getElementById('min-distance');
+            const minDistanceValueDisplay = document.getElementById('min-distance-value');
+            
+            minDistanceSlider.addEventListener('input', function() {
+                minDistance = parseInt(this.value);
+                minDistanceValueDisplay.textContent = minDistance;
+                updateStat('stat-min-distance', minDistance);
+            });
+            
+            // 摩擦力控制
+            const frictionSlider = document.getElementById('friction');
+            const frictionValueDisplay = document.getElementById('friction-value');
+            
+            frictionSlider.addEventListener('input', function() {
+                friction = parseFloat(this.value);
+                frictionValueDisplay.textContent = friction.toFixed(3);
+            });
+            
+            // 3D显示设置
+            document.getElementById('show-grid').addEventListener('change', function() {
+                showGrid = this.checked;
+                gridHelper.visible = showGrid;
+            });
+            
+            document.getElementById('show-axes').addEventListener('change', function() {
+                showAxes = this.checked;
+                axesHelper.visible = showAxes;
+            });
+            
+            document.getElementById('light-intensity').addEventListener('input', function() {
+                lightIntensity = parseFloat(this.value);
+                document.getElementById('light-intensity-value').textContent = lightIntensity.toFixed(1);
+                
+                directionalLight.intensity = lightIntensity;
+                ambientLight.intensity = lightIntensity * 0.5;
+            });
+            
+            // 初始化边界模式控制
+            initBoundaryModeControls();
+        }
+        
+        // 初始化官方调色盘
+        function initOfficialPalette() {
+            const palette = document.getElementById('official-palette');
+            palette.innerHTML = '';
+            
+            const officialColors = [
+                "#FF4444", "#FF8844", "#FFCC44", "#FFFF44", "#CCFF44",
+                "#88FF44", "#44FF44", "#44FF88", "#44FFCC", "#44FFFF",
+                "#44CCFF", "#4488FF", "#4444FF", "#8844FF", "#CC44FF",
+                "#FF44FF", "#FF44CC", "#FF4488", "#FF4444", "#FF4444"
+            ];
+            
+            officialColors.forEach(color => {
+                const colorDiv = document.createElement('div');
+                colorDiv.className = 'palette-color';
+                colorDiv.style.backgroundColor = color;
+                colorDiv.title = color;
+                colorDiv.addEventListener('click', function() {
+                    document.querySelectorAll('.palette-color').forEach(c => c.classList.remove('selected'));
+                    this.classList.add('selected');
+                    
+                    document.getElementById('new-color-value').value = color;
+                    document.getElementById('new-color-preview').style.backgroundColor = color;
+                    
+                    const colorName = getColorName(color);
+                    document.getElementById('new-color-name').value = colorName;
+                });
+                
+                palette.appendChild(colorDiv);
+            });
+        }
+        
+        function getColorName(color) {
+            const colorMap = {
+                "#FF4444": "红色",
+                "#FF8844": "橙红色",
+                "#FFCC44": "橙黄色",
+                "#FFFF44": "黄色",
+                "#CCFF44": "黄绿色",
+                "#88FF44": "浅绿色",
+                "#44FF44": "绿色",
+                "#44FF88": "青绿色",
+                "#44FFCC": "青色",
+                "#44FFFF": "天蓝色",
+                "#44CCFF": "浅蓝色",
+                "#4488FF": "蓝色",
+                "#4444FF": "深蓝色",
+                "#8844FF": "紫色",
+                "#CC44FF": "紫红色",
+                "#FF44FF": "品红色",
+                "#FF44CC": "粉红色",
+                "#FF4488": "玫红色"
+            };
+            
+            return colorMap[color.toUpperCase()] || "自定义颜色";
+        }
+        
+        // ==================== 选项卡和面板控制 ====================
+        function initTabs() {
+            const tabs = document.querySelectorAll('.tab');
+            const tabContents = document.querySelectorAll('.tab-content');
+            
+            tabs.forEach(tab => {
+                tab.addEventListener('click', function() {
+                    const tabId = this.getAttribute('data-tab');
+                    
+                    tabs.forEach(t => t.classList.remove('active'));
+                    tabContents.forEach(c => c.classList.remove('active'));
+                    
+                    this.classList.add('active');
+                    document.getElementById(`${tabId}-tab`).classList.add('active');
+                    
+                    if (tabId === 'rules') {
+                        setTimeout(updateMatrixDisplay, 10);
+                    }
+                });
+            });
+            
+            // 控制组展开/折叠
+            const controlGroups = document.querySelectorAll('.control-group');
+            controlGroups.forEach(group => {
+                const title = group.querySelector('.control-group-title');
+                if (title) {
+                    title.addEventListener('click', function() {
+                        group.classList.toggle('expanded');
+                    });
+                }
+            });
+        }
+        
+        function initPanelDrag() {
+            const panel = document.getElementById('control-panel');
+            const header = panel.querySelector('.panel-header');
+            let isDragging = false;
+            let offsetX, offsetY;
+            
+            header.addEventListener('mousedown', startDrag);
+            
+            function startDrag(e) {
+                isDragging = true;
+                const rect = panel.getBoundingClientRect();
+                offsetX = e.clientX - rect.left;
+                offsetY = e.clientY - rect.top;
+                
+                panel.style.zIndex = '100';
+                
+                document.addEventListener('mousemove', drag);
+                document.addEventListener('mouseup', stopDrag);
+            }
+            
+            function drag(e) {
+                if (!isDragging) return;
+                
+                let newX = e.clientX - offsetX;
+                let newY = e.clientY - offsetY;
+                
+                const maxX = window.innerWidth - panel.offsetWidth;
+                const maxY = window.innerHeight - panel.offsetHeight;
+                
+                newX = Math.max(0, Math.min(newX, maxX));
+                newY = Math.max(0, Math.min(newY, maxY));
+                
+                panel.style.left = `${newX}px`;
+                panel.style.top = `${newY}px`;
+            }
+            
+            function stopDrag() {
+                isDragging = false;
+                document.removeEventListener('mousemove', drag);
+                document.removeEventListener('mouseup', stopDrag);
+            }
+        }
+        
+        function initPanelToggle() {
+            const panel = document.getElementById('control-panel');
+            const toggleBtn = document.getElementById('toggle-panel');
+            const collapseBtn = panel.querySelector('.collapse-btn');
+            let isHidden = false;
+            
+            collapseBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                panel.classList.toggle('collapsed');
+            });
+            
+            toggleBtn.addEventListener('click', function() {
+                isHidden = !isHidden;
+                panel.style.display = isHidden ? 'none' : 'flex';
+                this.textContent = isHidden ? '显示控制面板' : '隐藏控制面板';
+            });
+        }
+        
+        // ==================== 初始化 ====================
+        function init() {
+            console.log("初始化3D Particle Life模拟器...");
+            
+            // 初始化Three.js场景
+            initThreeJS();
+            
+            // 初始化FPS波形图
+            drawFPSGraph();
+            drawCPUGraph();
+            drawMemoryGraph();
+            drawGPUGraph();
+            
+            // 初始化粒子
+            initParticles(1000);
+            
+            // 初始化UI
+            initUI();
+            initTabs();
+            initPanelDrag();
+            initPanelToggle();
+            updateRuleSelectors();
+            setupPresets();
+            
+            // 添加初始规则
+            addRule("#FF4444", "#FF4444", -0.4);
+            addRule("#44FF44", "#44FF44", -0.3);
+            addRule("#4444FF", "#4444FF", -0.2);
+            addRule("#FF4444", "#44FF44", 0.5);
+            addRule("#44FF44", "#FF4444", 0.6);
+            addRule("#FF4444", "#4444FF", 0.3);
+            addRule("#4444FF", "#FF4444", 0.4);
+            addRule("#44FF44", "#4444FF", -0.3);
+            addRule("#4444FF", "#44FF44", 0.2);
+            
+            // 确保矩阵显示
+            setTimeout(() => {
+                updateMatrixDisplay();
+                updateStats();
+            }, 100);
+            
+            // 开始动画循环
+            animate(0);
+            
+            console.log("3D Particle Life模拟器初始化完成！");
+        }
+    </script>
+</body>
+</html>
